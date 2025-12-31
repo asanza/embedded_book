@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "cargo build nucleo debug",
+      "type": "shell",
+      "command": "cargo",
+      "args": [
+        "build",
+        "--no-default-features",
+        "--features",
+        "nucleo",
+        "--target",
+        "thumbv7em-none-eabihf"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/chapter_1/rust"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

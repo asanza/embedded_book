@@ -1,0 +1,39 @@
+#
+# Copyright (c) 2019 Diego Asanza
+# 
+# SPDX-License-Identifier: Apache License 2.0
+# 
+# Created Date: Saturday May 25th 2019
+# Author: Diego Asanza
+#
+
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR ARM)
+
+set(TOOLCHAIN_PREFIX arm-none-eabi-)
+
+find_program(COMPILER name ${TOOLCHAIN_PREFIX}gcc${EXECUTABLE_FILE_EXTESION} PATHS ENV PATH)
+
+if(NOT COMPILER)
+  message(FATAL_ERROR "Compiler not found: ${TOOLCHAIN_PREFIX}gcc${EXECUTABLE_FILE_EXTESION}")
+endif()
+
+get_filename_component(BINUTILS_PATH ${COMPILER} DIRECTORY CACHE)
+get_filename_component(ARM_TOOLCHAIN_DIR ${BINUTILS_PATH} DIRECTORY CACHE)
+
+# Without that flag CMake is not able to pass test compilation check
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}gcc${EXECUTABLE_FILE_EXTESION})
+set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
+set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++${EXECUTABLE_FILE_EXTESION})
+
+set(CMAKE_OBJCOPY ${TOOLCHAIN_PREFIX}objcopy CACHE INTERNAL "objcopy tool")
+set(CMAKE_SIZE_UTIL ${TOOLCHAIN_PREFIX}size CACHE INTERNAL "size tool")
+
+set(CMAKE_FIND_ROOT_PATH ${BINUTILS_PATH})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+set(CMAKE_C_FLAGS_INIT "-std=c11 -g3 -ggdb -Wall -Werror -Wextra -Wpedantic -Wfatal-errors -fstack-usage")

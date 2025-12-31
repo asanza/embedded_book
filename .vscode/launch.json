@@ -1,0 +1,49 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "QEMU DEBUG",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/chapter_1/cpp/build/src/app/app-qemu",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "qemu",
+      "machine": "microbit"
+    },
+    {
+      "name": "NUCLEO DEBUG",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/chapter_1/cpp/build/src/app/app-nucleo",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "configFiles": ["board/st_nucleo_l4.cfg"]
+    },
+    {
+      "name": "RUST NUCLEO DEBUG",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/chapter_1/rust/target/thumbv7em-none-eabihf/debug/chapter1-hal-demo",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "configFiles": ["board/st_nucleo_l4.cfg"],
+      "preLaunchTask": "cargo build nucleo debug"
+    },
+    {
+      "name": "RUST QEMU DEBUG",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/chapter_1/rust/target/thumbv6m-none-eabi/debug/chapter1-hal-demo",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "qemu",
+      "machine": "microbit"
+    }
+  ]
+}

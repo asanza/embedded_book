@@ -1,0 +1,16 @@
+# Build outputs
+/target/
+
+# Editor/OS noise
+*.swp
+*.swo
+*.swm
+.DS_Store
+.vscode/
+.idea/
+
+# Rust backup files
+**/*.rs.bk
+
+# memory.x is generated in the build
+memory.x
