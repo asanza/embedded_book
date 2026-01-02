@@ -4,22 +4,22 @@
  * Copyright(c) 2023 Diego Asanza <f.asanza@gmail.com>
  */
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <gcov.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define WEAK     __attribute__((weak))
+#define WEAK __attribute__((weak))
 #define ALIAS(f) __attribute__((weak, alias(#f)))
 
 #define CPACR 0xE000ED88
-#define ICSR  0xE000ED04
-#define VTOR  0xE000ED08
-#define CCR   0xE000ED14
-#define HFSR  0xE000ED2C
+#define ICSR 0xE000ED04
+#define VTOR 0xE000ED08
+#define CCR 0xE000ED14
+#define HFSR 0xE000ED2C
 
-#define REGADDR(x)      ((unsigned int *)x)
+#define REGADDR(x) ((unsigned int *)x)
 #define BIT_SET(x, bit) ((x) & (1 << (bit)))
 #define PRINT_IF_SET(x, bit, message)                                          \
     do {                                                                       \
@@ -28,8 +28,7 @@
         }                                                                      \
     } while (0)
 
-extern void
-__StackTop(void);
+extern void __StackTop(void);
 
 extern unsigned int __bss_start__;
 extern unsigned int __bss_end__;
@@ -37,48 +36,31 @@ extern unsigned int __data_start__;
 extern unsigned int __data_end__;
 extern unsigned int __etext;
 
-void
-fault_handler_c(unsigned int *stack);
-extern void
-initialise_monitor_handles(void);
+void fault_handler_c(unsigned int *stack);
+extern void initialise_monitor_handles(void);
 
-__attribute__((naked)) void
-HardFault_Handler(void);
-void
-Default_Handler(void);
+__attribute__((naked)) void HardFault_Handler(void);
+void Default_Handler(void);
 
-void
-NMI_Handler(void) ALIAS(Default_Handler);
-void
-MemManage_Handler(void) ALIAS(Default_Handler);
-void
-BusFault_Handler(void) ALIAS(Default_Handler);
-void
-UsageFault_Handler(void) ALIAS(Default_Handler);
-void
-SecureFault_Handler(void) ALIAS(Default_Handler);
-void
-SVC_Handler(void) ALIAS(Default_Handler);
-void
-DebugMon_Handler(void) ALIAS(Default_Handler);
-void
-PendSV_Handler(void) ALIAS(Default_Handler);
-void
-SysTick_Handler(void) ALIAS(Default_Handler);
+void NMI_Handler(void) ALIAS(Default_Handler);
+void MemManage_Handler(void) ALIAS(Default_Handler);
+void BusFault_Handler(void) ALIAS(Default_Handler);
+void UsageFault_Handler(void) ALIAS(Default_Handler);
+void SecureFault_Handler(void) ALIAS(Default_Handler);
+void SVC_Handler(void) ALIAS(Default_Handler);
+void DebugMon_Handler(void) ALIAS(Default_Handler);
+void PendSV_Handler(void) ALIAS(Default_Handler);
+void SysTick_Handler(void) ALIAS(Default_Handler);
 
 extern void Timer0_IRQHandler(void);
 void Timer1_IRQHandler(void) ALIAS(Default_Handler);
 void Timer2_IRQHandler(void) ALIAS(Default_Handler);
 
-
-void
-reset_handler(void);
-void
-main(void);
+void reset_handler(void);
+void main(void);
 
 #if defined CODE_COVERAGE
-static void
-dump_gcov_info(void);
+static void dump_gcov_info(void);
 #endif
 
 __attribute__((
@@ -112,9 +94,7 @@ __attribute__((
     Timer2_IRQHandler,
 };
 
-void
-reset_handler(void)
-{
+void reset_handler(void) {
     __asm__ volatile("cpsid i");
 
     /* Remap the interrupt vector */
@@ -151,9 +131,7 @@ reset_handler(void)
     exit(0);
 }
 
-static void
-decode_ufsr(uint16_t ufsr)
-{
+static void decode_ufsr(uint16_t ufsr) {
     printf("UFSR : 0b");
     for (int i = 0; i < 16; i++) {
         BIT_SET(ufsr, 15 - i) ? printf("1") : printf("0");
@@ -174,9 +152,7 @@ decode_ufsr(uint16_t ufsr)
     printf(")\n");
 }
 
-static void
-decode_bfsr(uint8_t bfsr)
-{
+static void decode_bfsr(uint8_t bfsr) {
     printf("BFSR : 0b");
     for (int i = 0; i < 8; i++) {
         BIT_SET(bfsr, 7 - i) ? printf("1") : printf("0");
@@ -198,9 +174,7 @@ decode_bfsr(uint8_t bfsr)
     printf(")\n");
 }
 
-static void
-decode_mmfsr(uint8_t mmfsr)
-{
+static void decode_mmfsr(uint8_t mmfsr) {
     printf("MMFSR: 0b");
     for (int i = 0; i < 8; i++) {
         BIT_SET(mmfsr, 7 - i) ? printf("1") : printf("0");
@@ -221,9 +195,7 @@ decode_mmfsr(uint8_t mmfsr)
     printf(")\n");
 }
 
-static void
-decode_hfsr(void)
-{
+static void decode_hfsr(void) {
     volatile uint32_t *hfsr = (volatile uint32_t *)0xE000ED2C;
     printf("HFSR : 0b");
 
@@ -242,14 +214,12 @@ decode_hfsr(void)
     printf(" )\n");
 }
 
-void
-fault_handler_c(unsigned int *stack)
-{
-    volatile uint32_t *cfsr  = (volatile uint32_t *)0xE000ED28;
-    volatile uint16_t *ufsr  = (volatile uint16_t *)0xE000ED2A;
-    volatile uint8_t  *bfsr  = (volatile uint8_t *)0xE000ED29;
-    volatile uint8_t  *mmfsr = (volatile uint8_t *)0xE000ED28;
-    volatile uint8_t  *bfar  = (volatile uint8_t *)0xE000ED38;
+void fault_handler_c(unsigned int *stack) {
+    volatile uint32_t *cfsr = (volatile uint32_t *)0xE000ED28;
+    volatile uint16_t *ufsr = (volatile uint16_t *)0xE000ED2A;
+    volatile uint8_t *bfsr = (volatile uint8_t *)0xE000ED29;
+    volatile uint8_t *mmfsr = (volatile uint8_t *)0xE000ED28;
+    volatile uint8_t *bfar = (volatile uint8_t *)0xE000ED38;
 
     printf("================================================\n\n");
     printf("PANIC!!! Fault Handler Called...\n");
@@ -275,9 +245,7 @@ fault_handler_c(unsigned int *stack)
     exit(-1);
 }
 
-__attribute__((naked)) void
-HardFault_Handler(void)
-{
+__attribute__((naked)) void HardFault_Handler(void) {
 #if defined(__ARM_ARCH_8M_BASE__) || defined(__ARM_ARCH_6M__)
     __asm__ volatile("movs   r0, #4            \n"
                      "mov    r1, lr            \n"
@@ -302,9 +270,7 @@ HardFault_Handler(void)
 #endif
 }
 
-static const char *
-vector_name(uint32_t vector)
-{
+static const char *vector_name(uint32_t vector) {
     switch (vector) {
     case 1:
         return "Reset";
@@ -333,9 +299,7 @@ vector_name(uint32_t vector)
     }
 }
 
-void
-Default_Handler(void)
-{
+void Default_Handler(void) {
     /*
      * If we are here, chances are that we triggered an unhandled exception
      * handler. Read the active interrupt number bellow.
@@ -358,20 +322,16 @@ struct info {
     FILE *file;
 };
 
-static void
-filename(const char *f, void *arg)
-{
+static void filename(const char *f, void *arg) {
     struct info *i = (struct info *)arg;
-    i->file        = fopen(f, "wb");
+    i->file = fopen(f, "wb");
 }
 
-static void
-dump(const void *d, unsigned n, void *arg)
-{
+static void dump(const void *d, unsigned n, void *arg) {
     struct info *info = (struct info *)arg;
 
     const unsigned char *c;
-    unsigned             i;
+    unsigned i;
 
     c = d;
 
@@ -384,20 +344,16 @@ dump(const void *d, unsigned n, void *arg)
    certain conditions.  Simply try it out if it is needed for your application
    or not.  */
 
-static void *
-allocate(unsigned length, void *arg)
-{
+static void *allocate(unsigned length, void *arg) {
     (void)arg;
     return malloc(length);
 }
 
 /* Dump the gcov information of all translation units.  */
 
-static void
-dump_gcov_info(void)
-{
+static void dump_gcov_info(void) {
     const struct gcov_info *const *info = __gcov_info_start;
-    const struct gcov_info *const *end  = __gcov_info_end;
+    const struct gcov_info *const *end = __gcov_info_end;
 
     /* Obfuscate variable to prevent compiler optimizations.  */
     __asm__("" : "+r"(info));

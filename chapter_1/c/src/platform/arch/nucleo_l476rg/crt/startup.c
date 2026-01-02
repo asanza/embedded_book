@@ -4,11 +4,10 @@
  * Copyright(c) 2023 Diego Asanza <f.asanza@gmail.com>
  */
 
-#include <stdint.h>
 #include <errno.h>
+#include <stdint.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
 
 #define WEAK __attribute__((weak))
 #define ALIAS(f) __attribute__((weak, alias(#f)))
@@ -74,8 +73,60 @@ void TIM1_BRK_TIM15_Handler(void) ALIAS(Default_Handler);
 void TIM1_UP_TIM16_Handler(void) ALIAS(Default_Handler);
 void TIM1_TRG_COM_TIM17_Handler(void) ALIAS(Default_Handler);
 void TIM1_CC_Handler(void) ALIAS(Default_Handler);
+void I2C1_EV_IRQHandler(void) ALIAS(Default_Handler);
+void I2C1_ER_IRQHandler(void) ALIAS(Default_Handler);
+void I2C2_EV_IRQHandler(void) ALIAS(Default_Handler);
+void I2C2_ER_IRQHandler(void) ALIAS(Default_Handler);
+void SPI1_IRQHandler(void) ALIAS(Default_Handler);
+void SPI2_IRQHandler(void) ALIAS(Default_Handler);
+void USART1_IRQHandler(void) ALIAS(Default_Handler);
+void USART2_IRQHandler(void) ALIAS(Default_Handler);
+void USART3_IRQHandler(void) ALIAS(Default_Handler);
+void EXTI15_10_IRQHandler(void) ALIAS(Default_Handler);
+void RTC_Alarm_IRQHandler(void) ALIAS(Default_Handler);
+void DFSDM3_IRQHandler(void) ALIAS(Default_Handler);
+void TIM8_BRK_IRQHandler(void) ALIAS(Default_Handler);
+void TIM8_UP_IRQHandler(void) ALIAS(Default_Handler);
+void TIM8_TRG_COM_IRQHandler(void) ALIAS(Default_Handler);
+void TIM8_CC_IRQHandler(void) ALIAS(Default_Handler);
+void ADC3_IRQHandler(void) ALIAS(Default_Handler);
+void FMC_IRQHandler(void) ALIAS(Default_Handler);
+void SDMMC1_IRQHandler(void) ALIAS(Default_Handler);
+void SPI3_IRQHandler(void) ALIAS(Default_Handler);
+void UART4_IRQHandler(void) ALIAS(Default_Handler);
+void UART5_IRQHandler(void) ALIAS(Default_Handler);
+void TIM6_DAC_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel1_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel2_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel3_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel4_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel5_IRQHandler(void) ALIAS(Default_Handler);
+void DFSDM0_IRQHandler(void) ALIAS(Default_Handler);
+void DFSDM1_IRQHandler(void) ALIAS(Default_Handler);
+void DFSDM2_IRQHandler(void) ALIAS(Default_Handler);
+void COMP_IRQHandler(void) ALIAS(Default_Handler);
+void LPTIM1_IRQHandler(void) ALIAS(Default_Handler);
+void LPTIM2_IRQHandler(void) ALIAS(Default_Handler);
+void OTG_FS_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel6_IRQHandler(void) ALIAS(Default_Handler);
+void DMA2_Channel7_IRQHandler(void) ALIAS(Default_Handler);
+void LPUART1_IRQHandler(void) ALIAS(Default_Handler);
+void QUADSPI_IRQHandler(void) ALIAS(Default_Handler);
+void I2C3_EV_IRQHandler(void) ALIAS(Default_Handler);
+void I2C3_ER_IRQHandler(void) ALIAS(Default_Handler);
+void SAI1_IRQHandler(void) ALIAS(Default_Handler);
+void SAI2_IRQHandler(void) ALIAS(Default_Handler);
+void SWPMI1_IRQHandler(void) ALIAS(Default_Handler);
+void TSC_IRQHandler(void) ALIAS(Default_Handler);
+void LCD_IRQHandler(void) ALIAS(Default_Handler);
+void RNG_IRQHandler(void) ALIAS(Default_Handler);
+void FPU_IRQHandler(void) ALIAS(Default_Handler);
 
 extern void TIM2_IRQHandler(void);
+void TIM3_IRQHandler(void) ALIAS(Default_Handler);
+void TIM4_IRQHandler(void) ALIAS(Default_Handler);
+void TIM5_IRQHandler(void) ALIAS(Default_Handler);
+void TIM7_IRQHandler(void) ALIAS(Default_Handler);
 
 void reset_handler(void);
 void main(void);
@@ -127,97 +178,150 @@ __attribute__((
     TIM1_TRG_COM_TIM17_Handler, // 42
     TIM1_CC_Handler,            // 43
     TIM2_IRQHandler,            // 44 (TIM2 global interrupt)
+    TIM3_IRQHandler,
+    TIM4_IRQHandler,
+    I2C1_EV_IRQHandler,
+    I2C1_ER_IRQHandler,
+    I2C2_EV_IRQHandler,
+    I2C2_ER_IRQHandler,
+    SPI1_IRQHandler,
+    SPI2_IRQHandler,
+    USART1_IRQHandler,
+    USART2_IRQHandler,
+    USART3_IRQHandler,
+    EXTI15_10_IRQHandler,
+    RTC_Alarm_IRQHandler,
+    DFSDM3_IRQHandler,
+    TIM8_BRK_IRQHandler,
+    TIM8_UP_IRQHandler,
+    TIM8_TRG_COM_IRQHandler,
+    TIM8_CC_IRQHandler,
+    ADC3_IRQHandler,
+    FMC_IRQHandler,
+    SDMMC1_IRQHandler,
+    TIM5_IRQHandler,
+    SPI3_IRQHandler,
+    UART4_IRQHandler,
+    UART5_IRQHandler,
+    TIM6_DAC_IRQHandler,
+    TIM7_IRQHandler,
+    DMA2_Channel1_IRQHandler,
+    DMA2_Channel2_IRQHandler,
+    DMA2_Channel3_IRQHandler,
+    DMA2_Channel4_IRQHandler,
+    DMA2_Channel5_IRQHandler,
+    DFSDM0_IRQHandler,
+    DFSDM1_IRQHandler,
+    DFSDM2_IRQHandler,
+    COMP_IRQHandler,
+    LPTIM1_IRQHandler,
+    LPTIM2_IRQHandler,
+    OTG_FS_IRQHandler,
+    DMA2_Channel6_IRQHandler,
+    DMA2_Channel7_IRQHandler,
+    LPUART1_IRQHandler,
+    QUADSPI_IRQHandler,
+    I2C3_EV_IRQHandler,
+    I2C3_ER_IRQHandler,
+    SAI1_IRQHandler,
+    SAI2_IRQHandler,
+    SWPMI1_IRQHandler,
+    TSC_IRQHandler,
+    LCD_IRQHandler,
+    0,
+    RNG_IRQHandler,
+    FPU_IRQHandler,
 };
 
 void reset_handler(void) {
-  __asm__ volatile("cpsid i");
+    __asm__ volatile("cpsid i");
 
-  /* Remap the interrupt vector */
-  *REGADDR(VTOR) = (unsigned int)g_interrupt_vector;
+    /* Remap the interrupt vector */
+    *REGADDR(VTOR) = (unsigned int)g_interrupt_vector;
 
-  /* enable the FPU */
-  *REGADDR(CPACR) = (0x0FU) << 20;
+    /* enable the FPU */
+    *REGADDR(CPACR) = (0x0FU) << 20;
 
-  /* enable div by zero trap */
-  *REGADDR(CCR) |= (1 << 4);
+    /* enable div by zero trap */
+    *REGADDR(CCR) |= (1 << 4);
 
-  /* now we initialize data in ram from values saved in flash */
-  volatile unsigned int *it = &__data_start__;
-  volatile unsigned int *dr = &__etext;
+    /* now we initialize data in ram from values saved in flash */
+    volatile unsigned int *it = &__data_start__;
+    volatile unsigned int *dr = &__etext;
 
-  while (it < &__data_end__) {
-    *it++ = *dr++;
-  }
+    while (it < &__data_end__) {
+        *it++ = *dr++;
+    }
 
-  /* clear the bss section */
-  it = &__bss_start__;
-  while (it < &__bss_end__) {
-    *it++ = 0;
-  }
+    /* clear the bss section */
+    it = &__bss_start__;
+    while (it < &__bss_end__) {
+        *it++ = 0;
+    }
 
-  __asm__ volatile("cpsie i");
+    __asm__ volatile("cpsie i");
 
-  main();
+    main();
 
-  while (1)
-    ;
+    while (1)
+        ;
 }
 
 void HardFault_Handler(void) {
-  while (1)
-    ;
+    while (1)
+        ;
 }
 
 void Default_Handler(void) {
-  /*
-   * If we are here, chances are that we triggered an unhandled exception
-   * handler. Read the active interrupt number bellow.
-   */
-  volatile __attribute((unused)) uint32_t vector = *REGADDR(ICSR) & 0xFFU;
-  while (1)
-    ;
+    /*
+     * If we are here, chances are that we triggered an unhandled exception
+     * handler. Read the active interrupt number bellow.
+     */
+    volatile __attribute((unused)) uint32_t vector = *REGADDR(ICSR) & 0xFFU;
+    while (1)
+        ;
 }
 
 /* stubs for library functions. Avoid libnano link warnings. */
 int _close(int fd) {
-  (void)fd;
-  errno = ENOSYS;
-  return -1;
+    (void)fd;
+    errno = ENOSYS;
+    return -1;
 }
 int _fstat(int fd, struct stat *st) {
-  (void)fd;
-  st->st_mode = S_IFCHR;
-  return 0;
+    (void)fd;
+    st->st_mode = S_IFCHR;
+    return 0;
 }
 int _isatty(int fd) {
-  (void)fd;
-  return 1;
+    (void)fd;
+    return 1;
 }
 off_t _lseek(int fd, off_t off, int whence) {
-  (void)fd;
-  (void)off;
-  (void)whence;
-  errno = ENOSYS;
-  return -1;
+    (void)fd;
+    (void)off;
+    (void)whence;
+    errno = ENOSYS;
+    return -1;
 }
 ssize_t _read(int fd, void *buf, size_t len) {
-  (void)fd;
-  (void)buf;
-  (void)len;
-  errno = ENOSYS;
-  return -1;
+    (void)fd;
+    (void)buf;
+    (void)len;
+    errno = ENOSYS;
+    return -1;
 }
 ssize_t _write(int fd, const void *buf, size_t len) {
-  (void)fd;
-  (void)buf;
-  (void)len;
-  errno = ENOSYS;
-  return -1;
+    (void)fd;
+    (void)buf;
+    (void)len;
+    errno = ENOSYS;
+    return -1;
 }
 int _getpid(void) { return 1; }
 int _kill(int pid, int sig) {
-  (void)pid;
-  (void)sig;
-  errno = ENOSYS;
-  return -1;
+    (void)pid;
+    (void)sig;
+    errno = ENOSYS;
+    return -1;
 }

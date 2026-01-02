@@ -1,2 +1,2 @@
-add_subdirectory(qemu)
-add_subdirectory(nucleo)
+add_subdirectory(microbit)
+add_subdirectory(nucleo_l476rg)
