@@ -1,0 +1,2 @@
+add_subdirectory(microbit)
+add_subdirectory(nucleo_l476rg)
