@@ -1,5 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
+use core::marker::PhantomData;
 use cortex_m::asm;
 
 use crate::hal::Timer as TimerTrait;
@@ -38,70 +39,52 @@ static TIMER_ONE_SHOT: [AtomicBool; 3] = [
     AtomicBool::new(false),
 ];
 
-type Handler = unsafe extern "C" fn();
-
-pub struct Timer {
-    peripheral: TimerPeripheral,
+pub mod typestate {
+    pub struct NotConfigured;
+    pub struct Running;
 }
 
-impl Timer {
-    pub fn new(instance: u8, one_shot: bool) -> Self {
-        let idx = instance as usize;
-        assert!(idx < TIMER_BASES.len());
+use typestate::*;
 
+/// Zero-sized timer representation parameterized by typestate and index.
+pub struct TimerPeripheral<MODE, const IDX: u8> {
+    _marker: PhantomData<MODE>,
+}
+
+impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
+    const fn new() -> Self { Self { _marker: PhantomData } }
+}
+
+impl<const IDX: u8> TimerPeripheral<NotConfigured, IDX> {
+    /// Configure the timer peripheral (enable IRQ and compare0). This mirrors
+    /// previous runtime setup but is a typestate transition to `Running`.
+    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, IDX> {
+        let idx = IDX as usize;
         TIMER_ONE_SHOT[idx].store(one_shot, Ordering::Release);
 
-        let peripheral = TimerPeripheral::new(idx);
-        peripheral.enable_compare0_interrupt();
-        peripheral.enable_irq();
-
-        Self { peripheral }
-    }
-}
-
-impl TimerTrait for Timer {
-    fn delay_ms(&mut self, ms: u32) {
-        let period = ms.saturating_mul(50);
-        self.peripheral.arm_delay(period);
-
-        let fired = self.peripheral.fired_flag();
-        while !fired.load(Ordering::Acquire) {
-            asm::wfi();
-        }
-    }
-}
-
-struct TimerPeripheral {
-    idx: usize,
-}
-
-impl TimerPeripheral {
-    const fn new(idx: usize) -> Self {
-        Self { idx }
-    }
-
-    fn reg(&self, offset: u32) -> *mut u32 {
-        (TIMER_BASES[self.idx] + offset) as *mut u32
-    }
-
-    fn enable_irq(&self) {
+        // enable compare0 interrupt
         unsafe {
-            let mask = 1u32 << TIMER_IRQS[self.idx];
+            let inten = (TIMER_BASES[idx] + INTENSET_OFFSET) as *mut u32;
+            let current = read_volatile(inten);
+            write_volatile(inten, current | TIMER_INTENSET_COMPARE0);
+
+            // enable NVIC
+            let mask = 1u32 << TIMER_IRQS[idx];
             let val = read_volatile(NVIC_ISER0);
             write_volatile(NVIC_ISER0, val | mask);
         }
-    }
 
-    fn enable_compare0_interrupt(&self) {
-        unsafe {
-            let inten = self.reg(INTENSET_OFFSET);
-            let current = read_volatile(inten);
-            write_volatile(inten, current | TIMER_INTENSET_COMPARE0);
-        }
+        TimerPeripheral::new()
+    }
+}
+
+impl<const IDX: u8> TimerPeripheral<Running, IDX> {
+    fn reg(&self, offset: u32) -> *mut u32 {
+        (TIMER_BASES[IDX as usize] + offset) as *mut u32
     }
 
     fn arm_delay(&self, period: u32) {
-        let fired = self.fired_flag();
+        let fired = &TIMER_FIRED[IDX as usize];
         fired.store(false, Ordering::Release);
 
         unsafe {
@@ -117,10 +100,39 @@ impl TimerPeripheral {
         }
     }
 
-    fn fired_flag(&self) -> &AtomicBool {
-        &TIMER_FIRED[self.idx]
+    fn fired_flag(&self) -> &AtomicBool { &TIMER_FIRED[IDX as usize] }
+}
+
+impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
+    fn delay_ms(&mut self, ms: u32) {
+        let period = ms.saturating_mul(50);
+        self.arm_delay(period);
+
+        let fired = self.fired_flag();
+        while !fired.load(Ordering::Acquire) {
+            asm::wfi();
+        }
     }
 }
+
+// Generate a small board-level `Timer` collection with fields `t0..t2`.
+macro_rules! make_timers {
+    ($($idx:expr),*) => {
+        paste::paste! {
+            pub struct Timer {
+                $( pub [<t $idx>]: TimerPeripheral<NotConfigured, $idx>, )*
+            }
+
+            impl Timer {
+                pub fn new() -> Self {
+                    Self { $( [<t $idx>]: TimerPeripheral::new(), )* }
+                }
+            }
+        }
+    }
+}
+
+make_timers!(0,1,2);
 
 #[inline(always)]
 unsafe fn handle_timer_irq(idx: usize) {

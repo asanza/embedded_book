@@ -12,7 +12,9 @@ use arch::{GpioImpl, TimerImpl};
 
 #[entry]
 fn main() -> ! {
-    let mut timer = TimerImpl::new(0, false);
+    // Construct timer collection and acquire timer 0 as a running timer.
+    let timers = TimerImpl::new();
+    let mut timer = timers.t0.into_running(false);
     // Construct the board GPIO collection once and move individual pins out.
     let gpio = GpioImpl::new();
     let mut led = gpio.p5.into_output(false, true);

@@ -1,5 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
+use core::marker::PhantomData;
 use cortex_m::asm;
 
 // TIM2 peripheral (interrupt-driven delay)
@@ -26,16 +27,27 @@ const TIMER_CLOCK_HZ: u32 = 4_000_000;
 static TIM2_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM2_ONE_SHOT: AtomicBool = AtomicBool::new(false);
 
-use crate::hal::{Gpio as GpioTrait, Timer as TimerTrait};
+use crate::hal::Timer as TimerTrait;
 
-pub struct Timer {
-    instance: u8,
+pub mod typestate {
+    pub struct NotConfigured;
+    pub struct Running;
 }
 
-impl Timer {
-    pub fn new(instance: u8, one_shot: bool) -> Self {
-        assert!(instance == 0);
+use typestate::*;
 
+/// Zero-sized timer representation parameterized by typestate.
+pub struct TimerPeripheral<MODE, const IDX: u8> {
+    _marker: PhantomData<MODE>,
+}
+
+impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
+    const fn new() -> Self { Self { _marker: PhantomData } }
+}
+
+impl TimerPeripheral<NotConfigured, 0> {
+    /// Initialize TIM2 and enable its IRQ; transition to `Running`.
+    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 0> {
         TIM2_ONE_SHOT.store(one_shot, Ordering::Release);
 
         unsafe {
@@ -56,13 +68,13 @@ impl Timer {
             let iser = read_volatile(NVIC_ISER0);
             write_volatile(NVIC_ISER0, iser | TIM2_IRQ_BIT);
         }
-        Self { instance }
+
+        TimerPeripheral::new()
     }
 }
 
-impl TimerTrait for Timer {
-    fn delay_ms(&mut self, ms: u32) {
-        let _ = self.instance; // document timer selection even though only instance 0 is valid
+impl TimerPeripheral<Running, 0> {
+    fn arm_delay(&self, ms: u32) {
         unsafe {
             TIM2_FIRED.store(false, Ordering::Release);
 
@@ -80,13 +92,41 @@ impl TimerTrait for Timer {
 
             write_volatile(TIM2_DIER, TIM_DIER_UIE);
             write_volatile(TIM2_CR1, TIM_CR1_CEN);
+        }
+    }
 
-            while !TIM2_FIRED.load(Ordering::Acquire) {
-                asm::wfi();
+    fn fired_flag(&self) -> &AtomicBool {
+        &TIM2_FIRED
+    }
+}
+
+impl TimerTrait for TimerPeripheral<Running, 0> {
+    fn delay_ms(&mut self, ms: u32) {
+        self.arm_delay(ms);
+        while !self.fired_flag().load(Ordering::Acquire) {
+            asm::wfi();
+        }
+    }
+}
+
+// Generate a simple Timer collection with t0 field.
+macro_rules! make_timers {
+    ($($idx:expr),*) => {
+        paste::paste! {
+            pub struct Timer {
+                $( pub [<t $idx>]: TimerPeripheral<NotConfigured, $idx>, )*
+            }
+
+            impl Timer {
+                pub fn new() -> Self {
+                    Self { $( [<t $idx>]: TimerPeripheral::new(), )* }
+                }
             }
         }
     }
 }
+
+make_timers!(0);
 
 #[no_mangle]
 pub extern "C" fn TIM2() {
