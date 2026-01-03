@@ -9,6 +9,7 @@ cortex-m-rt = { version = "0.7", features = ["device"] }
 embedded-hal = "1.0.0"
 panic-halt = "0.2"
 cortex-m-semihosting = { version = "0.5", optional = true }
+paste = "1.0"
 
 [features]
 # QEMU/micro:bit style target (thumbv6m). Uses semihosting for logging.

@@ -7,13 +7,15 @@ use panic_halt as _;
 mod hal;
 mod arch;
 
-use crate::hal::{Gpio as GpioTrait, Timer as TimerTrait};
+use crate::hal::{Timer as TimerTrait};
 use arch::{GpioImpl, TimerImpl};
 
 #[entry]
 fn main() -> ! {
     let mut timer = TimerImpl::new(0, false);
-    let mut led = GpioImpl::new(5, false, true);
+    // Construct the board GPIO collection once and move individual pins out.
+    let gpio = GpioImpl::new();
+    let mut led = gpio.p5.into_output(false, true);
 
     loop {
         led.write(true);

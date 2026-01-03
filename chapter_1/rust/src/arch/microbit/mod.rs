@@ -5,6 +5,7 @@ mod timer;
 
 pub use gpio::Gpio;
 pub use timer::Timer;
+// (Pins owner removed; microbit exposes typed `Gpio` with per-pin fields)
 
 type Handler = unsafe extern "C" fn();
 
