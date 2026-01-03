@@ -1,3 +1,54 @@
+/*
+MIT License
+
+Copyright (c) 2026 Diego.Asanza <f.asanza@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+//! Micro:bit GPIO typestate implementation
+//!
+//! This module provides zero-sized, typestate-driven `Pin<MODE, INDEX>` types
+//! and a generated `Gpio` collection with fields `p0..p9`. Each `Pin` is a
+//! compile-time distinct type; moving a field out of the `Gpio` struct consumes
+//! that pin value and prevents re-acquisition of the same pin at compile time.
+//!
+//! Usage summary:
+//! - Construct the board collection: `let gpio = Gpio::new();`
+//! - Move a pin out and configure as output: `let mut led = gpio.p5.into_output(false, true);`
+//! - Use the pin: `led.write(true);`
+//!
+//! Rationale and safety notes:
+//! - Pins are represented as zero-sized typestates, so they incur no runtime
+//!   memory cost; the generated methods perform register writes directly.
+//! - Hardware initialization for an output pin is performed when converting
+//!   `NotConfigured` -> `Output`. For the micro:bit this is tracked via a
+//!   global init mask guarded by a critical section to ensure idempotence.
+//! - Moving a field out of the `Gpio` value enforces unique ownership at
+//!   compile time — attempts to use the same named field twice will be a
+//!   compile-time error.
+//!
+//! If you prefer numeric-literal ergonomics (e.g., `acquire(5, ...)`), a small
+//! macro wrapper can be added to expand numeric literals to the corresponding
+//! `gpio.pN` field. This pattern follows the "macro bunker" approach used in
+//! the example article: https://www.ecorax.net/macro-bunker-1/
+
 use core::marker::PhantomData;
 use core::ptr::write_volatile;
 use cortex_m::interrupt;
@@ -17,6 +68,7 @@ const GPIO_DIRSET: *mut u32 = (GPIO_BASE + 0x518) as *mut u32;
 static mut GPIO_INIT_MASK: u32 = 0;
 
 pub mod typestate {
+    /// Pin typestates.
     pub struct NotConfigured;
     pub struct Output;
     pub struct Input;
@@ -24,6 +76,7 @@ pub mod typestate {
 
 use typestate::*;
 
+/// Zero-sized pin representation parameterized by typestate and index.
 pub struct Pin<MODE, const INDEX: u8> {
     _marker: PhantomData<MODE>
 }
@@ -34,6 +87,9 @@ impl<MODE, const INDEX: u8> Pin<MODE, INDEX> {
 
 impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
     /// Convert this pin into an output pin, performing any required hardware init.
+    ///
+    /// `open_drain` is kept for API compatibility (ignored on micro:bit), and
+    /// `initial_high` sets the initial output level.
     pub fn into_output(self, _open_drain: bool, initial_high: bool) -> Pin<Output, INDEX> {
         let bit = 1u32 << INDEX;
         let mut do_init = false;
@@ -53,6 +109,7 @@ impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
 }
 
 impl<const INDEX: u8> Pin<Output, INDEX> {
+    /// Drive the pin high or low.
     pub fn write(&mut self, high: bool) {
         let bit = 1u32 << INDEX;
         unsafe {
@@ -71,6 +128,7 @@ impl<const INDEX: u8> GpioTrait for Pin<Output, INDEX> {
 macro_rules! make_pins {
     ($($idx:expr),*) => {
         paste::paste! {
+            /// Board GPIO collection. Move a field out to acquire that pin.
             pub struct Gpio {
                 $( pub [<p $idx>]: Pin<NotConfigured, $idx>, )*
             }
