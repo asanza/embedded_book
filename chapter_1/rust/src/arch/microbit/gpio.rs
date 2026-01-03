@@ -63,9 +63,8 @@ const GPIO_OUTSET: *mut u32 = (GPIO_BASE + 0x508) as *mut u32;
 const GPIO_OUTCLR: *mut u32 = (GPIO_BASE + 0x50C) as *mut u32;
 const GPIO_DIRSET: *mut u32 = (GPIO_BASE + 0x518) as *mut u32;
 
-// Global mask to track which pins have been configured as outputs. Guarded
-// by a critical section when mutated to avoid races on Cortex-M.
-static mut GPIO_INIT_MASK: u32 = 0;
+// Note: we no longer track a global init mask; DIRSET is idempotent on nRF
+// (writing the same bit repeatedly is harmless), so we do a direct write.
 
 pub mod typestate {
     /// Pin typestates.
@@ -92,14 +91,8 @@ impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
     /// `initial_high` sets the initial output level.
     pub fn into_output(self, _open_drain: bool, initial_high: bool) -> Pin<Output, INDEX> {
         let bit = 1u32 << INDEX;
-        let mut do_init = false;
-        interrupt::free(|_| unsafe {
-            if (GPIO_INIT_MASK & bit) == 0 { GPIO_INIT_MASK |= bit; do_init = true; }
-        });
-
-        if do_init {
-            unsafe { write_volatile(GPIO_DIRSET, bit); }
-        }
+        // DIRSET is write-1-to-set and idempotent; perform the set unconditionally.
+        unsafe { write_volatile(GPIO_DIRSET, bit); }
         unsafe {
             if initial_high { write_volatile(GPIO_OUTSET, bit); } else { write_volatile(GPIO_OUTCLR, bit); }
         }
