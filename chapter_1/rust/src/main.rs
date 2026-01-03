@@ -12,6 +12,7 @@ use arch::{GpioImpl, TimerImpl};
 
 #[entry]
 fn main() -> ! {
+    const DELAY_MS:u32 = 500;
     // Construct timer collection and acquire timer 0 as a running timer.
     let timers = TimerImpl::new();
     let mut timer = timers.t0.into_running(false);
@@ -21,8 +22,8 @@ fn main() -> ! {
 
     loop {
         led.write(true);
-        timer.delay_ms(1000);
+        timer.delay_ms(DELAY_MS);
         led.write(false);
-        timer.delay_ms(1000);
+        timer.delay_ms(DELAY_MS);
     }
 }
