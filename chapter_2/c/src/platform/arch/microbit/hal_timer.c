@@ -11,6 +11,7 @@
 #include <hal_timer.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define TIMER0_BASE (0x40008000U)
 #define TIMER1_BASE (0x40009000U)
@@ -32,7 +33,7 @@
 
 #define TIMER_MODE_TIMER        (0u)
 #define TIMER_BITMODE_32BIT     (3u)
-#define TIMER_PRESCALER_128     (7u)
+#define TIMER_PRESCALER_16      (4u)
 #define TIMER_INTENSET_COMPARE0 (1u << 16)
 
 #define NVIC_ISER0 (0xE000E100u)
@@ -50,17 +51,22 @@ static inline void NVIC_EnableIRQ(uint32_t IRQn) {
 struct timer_desc {
     uint32_t base;
     bool one_shot;
-    volatile uint32_t fired;
+    uint32_t period_us;
+    hal_timer_cb cb;
+    void* cb_arg;
 };
 
 static struct timer_desc timers[] = {
-    {TIMER0_BASE, false, 0},
+    {TIMER0_BASE, false, 0, NULL, NULL},
 };
 
-void hal_timer_init(int timer_instance, bool one_shot) {
+void hal_timer_init(int timer_instance, uint32_t period_us, bool one_shoot) {
     assert((unsigned)timer_instance < (sizeof(timers) / sizeof(timers[0])));
 
-    timers[timer_instance].one_shot = one_shot;
+    timers[timer_instance].one_shot = one_shoot;
+    timers[timer_instance].period_us = period_us;
+    timers[timer_instance].cb = NULL;
+    timers[timer_instance].cb_arg = NULL;
 
     /* Clear any pending event, enable CC[0] interrupt and NVIC */
     REG(timers[timer_instance].base + EVENT_COMPARE0_OFFSET) = 0u;
@@ -68,38 +74,42 @@ void hal_timer_init(int timer_instance, bool one_shot) {
     NVIC_EnableIRQ(TIMER0_IRQN + (uint32_t)timer_instance);
 }
 
-void hal_timer_delay_ms(int timer_instance, uint32_t period_ms) {
+void hal_timer_set_period(int timer_instance, uint32_t period_us) {
+    assert((unsigned)timer_instance < (sizeof(timers) / sizeof(timers[0])));
+    timers[timer_instance].period_us = period_us;
+}
+
+void hal_timer_start(int timer_instance, hal_timer_cb cb, void* arg) {
     assert((unsigned)timer_instance < (sizeof(timers) / sizeof(timers[0])));
 
     uint32_t base = timers[timer_instance].base;
 
-    /* Configure peripheral */
+    /* Configure peripheral (same as previous implementation) */
     REG(base + MODE_OFFSET) = TIMER_MODE_TIMER;
     REG(base + TASK_CLEAR_OFFSET) = 1u;
-    REG(base + PRESCALER_OFFSET) = TIMER_PRESCALER_128;
+    REG(base + PRESCALER_OFFSET) = TIMER_PRESCALER_16;
     REG(base + BITMODE_OFFSET) = TIMER_BITMODE_32BIT;
 
-    /* Approximate period — device clocks differ and QEMU is not
-     * timing-accurate. Keep calculation here so caller uses ms.
+    /* period_us -> ticks: ticks = period_us / 8 (approx)
+     * Use rounding to reduce error.
      */
-    uint32_t ticks = period_ms * 125u;
+    uint32_t ticks = timers[timer_instance].period_us;
+    if (ticks == 0) ticks = 1;
     REG(base + CC0_OFFSET) = ticks;
 
-    /* Start and wait for compare event. We use a simple spin with
-     * WFI — this is sufficient for the examples in the book. */
-    /* Ensure previous events are cleared, arm the fired flag, then start */
+    /* Arm and start */
     REG(base + EVENT_COMPARE0_OFFSET) = 0u;
-    timers[timer_instance].fired = 0u;
+    timers[timer_instance].cb = cb;
+    timers[timer_instance].cb_arg = arg;
     REG(base + TASK_START_OFFSET) = 1u;
+}
 
-    /* Wait for IRQ to set the fired flag */
-    while (!timers[timer_instance].fired) {
-        __wfi();
-    }
-
-    if (timers[timer_instance].one_shot) {
-        REG(base + TASK_STOP_OFFSET) = 1u;
-    }
+void hal_timer_stop(int timer_instance) {
+    assert((unsigned)timer_instance < (sizeof(timers) / sizeof(timers[0])));
+    uint32_t base = timers[timer_instance].base;
+    REG(base + TASK_STOP_OFFSET) = 1u;
+    timers[timer_instance].cb = NULL;
+    timers[timer_instance].cb_arg = NULL;
 }
 
 /* IRQ handler for Timer0. Startup file aliases the other handlers to
@@ -112,7 +122,17 @@ void Timer0_IRQHandler(void) {
         if (timers[0].one_shot) {
             REG(base + TASK_STOP_OFFSET) = 1u;
         }
-        timers[0].fired = 1u;
+
+        /* If the timer is periodic, clear the counter so the compare
+         * will trigger again after the configured period. This emulates
+         * the COMPARE[n] -> CLEAR short present in Nordic timers. */
+        if (!timers[0].one_shot) {
+            REG(base + TASK_CLEAR_OFFSET) = 1u;
+        }
+
+        if (timers[0].cb) {
+            timers[0].cb(timers[0].cb_arg);
+        }
     }
 }
 
