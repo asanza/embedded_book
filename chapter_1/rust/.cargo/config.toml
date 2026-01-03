@@ -1,3 +1,10 @@
+[alias]
+# Convenient top-level aliases for build/run
+build-nucleo = "build --release --no-default-features --features nucleo --target thumbv7em-none-eabihf"
+run-nucleo = "run --release --no-default-features --features nucleo --target thumbv7em-none-eabihf"
+build-nucleo-debug = "build --no-default-features --features nucleo --target thumbv7em-none-eabihf"
+run-nucleo-debug = "run --no-default-features --features nucleo --target thumbv7em-none-eabihf"
+
 [build]
 target = "thumbv6m-none-eabi"  # default to the QEMU/micro:bit class target
 
