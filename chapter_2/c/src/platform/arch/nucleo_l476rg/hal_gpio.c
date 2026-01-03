@@ -103,3 +103,43 @@ void hal_gpio_write(int pin, int value) {
         REG(base + GPIO_BSRR_OFFSET) = (mask << 16); /* reset pin low */
     }
 }
+
+int hal_gpio_init_in(int pin, enum hal_gpio_pull pull) {
+    uint32_t mask = 0;
+    unsigned port_idx = 0;
+    uintptr_t base = gpio_from_pin(pin, &mask, &port_idx);
+    if (base == 0) {
+        return -1;
+    }
+
+    enable_gpio_clock(port_idx);
+
+    /* Set MODER to input (00b) for this pin without disturbing others. */
+    unsigned shift = ((unsigned)pin % 16U) * 2U;
+    uint32_t m = REG(base + GPIO_MODER_OFFSET);
+    m &= ~(0x3UL << shift);
+    REG(base + GPIO_MODER_OFFSET) = m;
+
+    /* Configure pull-up/pull-down in PUPDR (2 bits per pin). */
+    unsigned pshift = ((unsigned)pin % 16U) * 2U;
+    uint32_t p = REG(base + GPIO_PUPDR_OFFSET);
+    p &= ~(0x3UL << pshift);
+    if (pull == HAL_GPIO_PULLUP) {
+        p |= (0x1UL << pshift); /* 01 = pull-up */
+    } else if (pull == HAL_GPIO_PULLDOWN) {
+        p |= (0x2UL << pshift); /* 10 = pull-down */
+    }
+    REG(base + GPIO_PUPDR_OFFSET) = p;
+
+    return 0;
+}
+
+int hal_gpio_read(int pin) {
+    uint32_t mask = 0;
+    unsigned port_idx = 0;
+    uintptr_t base = gpio_from_pin(pin, &mask, &port_idx);
+    if (base == 0) {
+        return -1;
+    }
+    return (REG(base + GPIO_IDR_OFFSET) & mask) ? 1 : 0;
+}
