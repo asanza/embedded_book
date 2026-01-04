@@ -67,11 +67,30 @@ impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
 }
 
 impl<const IDX: u8> TimerPeripheral<NotConfigured, IDX> {
-    /// Configure the timer peripheral (enable IRQ and compare0). This mirrors
-    /// previous runtime setup but is a typestate transition to `Running`.
-    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, IDX> {
+    /// Configure the timer peripheral as periodic and enable compare0/IRQ.
+    pub fn into_periodic(self) -> TimerPeripheral<Running, IDX> {
         let idx = IDX as usize;
-        TIMER_ONE_SHOT[idx].store(one_shot, Ordering::Release);
+        TIMER_ONE_SHOT[idx].store(false, Ordering::Release);
+
+        // enable compare0 interrupt
+        unsafe {
+            let inten = (TIMER_BASES[idx] + INTENSET_OFFSET) as *mut u32;
+            let current = read_volatile(inten);
+            write_volatile(inten, current | TIMER_INTENSET_COMPARE0);
+
+            // enable NVIC
+            let mask = 1u32 << TIMER_IRQS[idx];
+            let val = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, val | mask);
+        }
+
+        TimerPeripheral::new()
+    }
+
+    /// Configure the timer peripheral as one-shot and enable compare0/IRQ.
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, IDX> {
+        let idx = IDX as usize;
+        TIMER_ONE_SHOT[idx].store(true, Ordering::Release);
 
         // enable compare0 interrupt
         unsafe {

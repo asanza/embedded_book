@@ -83,10 +83,9 @@ impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
 }
 
 impl TimerPeripheral<NotConfigured, 0> {
-    /// Initialize TIM2 and enable its IRQ; transition to `Running`.
-    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 0> {
-        TIM2_ONE_SHOT.store(one_shot, Ordering::Release);
-
+    /// Initialize TIM2 as a periodic timer and enable its IRQ; transition to `Running`.
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 0> {
+        TIM2_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM2 clock on APB1
             let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
@@ -105,16 +104,38 @@ impl TimerPeripheral<NotConfigured, 0> {
             let iser = read_volatile(NVIC_ISER0);
             write_volatile(NVIC_ISER0, iser | TIM2_IRQ_BIT);
         }
+        TimerPeripheral::new()
+    }
 
+    /// Initialize TIM2 as a one-shot timer and enable its IRQ; transition to `Running`.
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 0> {
+        TIM2_ONE_SHOT.store(true, Ordering::Release);
+        unsafe {
+            // Enable TIM2 clock on APB1
+            let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+            apb |= 1 << 0; // TIM2EN
+            write_volatile((0x4002_1000 + 0x58) as *mut u32, apb);
+            let _ = read_volatile((0x4002_1000 + 0x58) as *mut u32); // barrier
+
+            // Reset TIM2 to a known state, then release reset.
+            let mut rst = read_volatile((0x4002_1000 + 0x38) as *mut u32);
+            rst |= 1 << 0; // TIM2RST
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+            rst &= !(1 << 0);
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+
+            // Enable TIM2 interrupt in NVIC
+            let iser = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, iser | TIM2_IRQ_BIT);
+        }
         TimerPeripheral::new()
     }
 }
 
 impl TimerPeripheral<NotConfigured, 1> {
-    /// Initialize TIM3 and enable its IRQ; transition to `Running`.
-    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 1> {
-        TIM3_ONE_SHOT.store(one_shot, Ordering::Release);
-
+    /// Initialize TIM3 as periodic and enable its IRQ; transition to `Running`.
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 1> {
+        TIM3_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM3 clock on APB1 (TIM3EN is bit 1)
             let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
@@ -133,16 +154,38 @@ impl TimerPeripheral<NotConfigured, 1> {
             let iser = read_volatile(NVIC_ISER0);
             write_volatile(NVIC_ISER0, iser | TIM3_IRQ_BIT);
         }
+        TimerPeripheral::new()
+    }
 
+    /// Initialize TIM3 as one-shot and enable its IRQ; transition to `Running`.
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 1> {
+        TIM3_ONE_SHOT.store(true, Ordering::Release);
+        unsafe {
+            // Enable TIM3 clock on APB1 (TIM3EN is bit 1)
+            let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+            apb |= 1 << 1; // TIM3EN
+            write_volatile((0x4002_1000 + 0x58) as *mut u32, apb);
+            let _ = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+
+            // Reset TIM3 then release
+            let mut rst = read_volatile((0x4002_1000 + 0x38) as *mut u32);
+            rst |= 1 << 1; // TIM3RST
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+            rst &= !(1 << 1);
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+
+            // Enable TIM3 IRQ in NVIC
+            let iser = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, iser | TIM3_IRQ_BIT);
+        }
         TimerPeripheral::new()
     }
 }
 
 impl TimerPeripheral<NotConfigured, 2> {
-    /// Initialize TIM4 and enable its IRQ; transition to `Running`.
-    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 2> {
-        TIM4_ONE_SHOT.store(one_shot, Ordering::Release);
-
+    /// Initialize TIM4 as periodic and enable its IRQ; transition to `Running`.
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 2> {
+        TIM4_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM4 clock on APB1 (TIM4EN is bit 2)
             let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
@@ -161,7 +204,30 @@ impl TimerPeripheral<NotConfigured, 2> {
             let iser = read_volatile(NVIC_ISER0);
             write_volatile(NVIC_ISER0, iser | TIM4_IRQ_BIT);
         }
+        TimerPeripheral::new()
+    }
 
+    /// Initialize TIM4 as one-shot and enable its IRQ; transition to `Running`.
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 2> {
+        TIM4_ONE_SHOT.store(true, Ordering::Release);
+        unsafe {
+            // Enable TIM4 clock on APB1 (TIM4EN is bit 2)
+            let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+            apb |= 1 << 2; // TIM4EN
+            write_volatile((0x4002_1000 + 0x58) as *mut u32, apb);
+            let _ = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+
+            // Reset TIM4 then release
+            let mut rst = read_volatile((0x4002_1000 + 0x38) as *mut u32);
+            rst |= 1 << 2; // TIM4RST
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+            rst &= !(1 << 2);
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+
+            // Enable TIM4 IRQ in NVIC
+            let iser = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, iser | TIM4_IRQ_BIT);
+        }
         TimerPeripheral::new()
     }
 }

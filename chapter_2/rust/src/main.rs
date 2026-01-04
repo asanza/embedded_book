@@ -17,10 +17,10 @@ fn main() -> ! {
     const DELAY_US: u32 = 500_000;
     // Construct timer collection and acquire timer 0 as a running timer.
     let timers = TimerImpl::new();
-    let mut timer = timers.t0.into_running(false);
+    let mut timer = timers.t0.into_periodic();
 
     // Use t1 as a one-shot timer for debouncing.
-    let one_shot = timers.t1.into_running(true);
+    let one_shot = timers.t1.into_oneshot();
 
     // Construct the board GPIO collection once and move individual pins out.
     let gpio = GpioImpl::new();
