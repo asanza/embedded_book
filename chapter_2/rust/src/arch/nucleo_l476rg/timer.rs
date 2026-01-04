@@ -2,6 +2,10 @@ use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::marker::PhantomData;
 use cortex_m::asm;
+use crate::event::Event;
+use cortex_m::interrupt::Mutex;
+use cortex_m::interrupt;
+use core::cell::RefCell;
 
 // TIM2 peripheral (interrupt-driven delay)
 const TIM2_BASE: u32 = 0x4000_0000;
@@ -26,6 +30,7 @@ const TIMER_CLOCK_HZ: u32 = 4_000_000;
 
 static TIM2_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM2_ONE_SHOT: AtomicBool = AtomicBool::new(false);
+static TIM2_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
 
 use crate::hal::Timer as TimerTrait;
 
@@ -101,11 +106,24 @@ impl TimerPeripheral<Running, 0> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 0> {
-    fn delay_ms(&mut self, ms: u32) {
-        self.arm_delay(ms);
-        while !self.fired_flag().load(Ordering::Acquire) {
-            asm::wfi();
+    fn start(&mut self, frequency_hz: u32, event: Event) {
+        cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = Some(event));
+        // configure hardware timer to desired frequency (omitted)
+        let ms = 1000 / (frequency_hz.max(1));
+        self.arm_delay(ms as u32);
+    }
+
+    fn stop(&mut self) {
+        unsafe {
+            write_volatile(TIM2_CR1, read_volatile(TIM2_CR1) & !TIM_CR1_CEN);
+            write_volatile(TIM2_DIER, 0);
         }
+        cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = None);
+    }
+
+    fn is_running(&self) -> bool {
+        // crude: running if counter enabled
+        unsafe { read_volatile(TIM2_CR1) & TIM_CR1_CEN != 0 }
     }
 }
 
@@ -139,6 +157,12 @@ pub extern "C" fn TIM2() {
         }
     }
     TIM2_FIRED.store(true, Ordering::Release);
+    // trigger event if registered
+    cortex_m::interrupt::free(|cs| {
+        if let Some(ref e) = *TIM2_EVENT.borrow(cs).borrow() {
+            e.trigger();
+        }
+    });
 }
 
 #[no_mangle]

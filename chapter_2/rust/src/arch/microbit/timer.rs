@@ -4,6 +4,10 @@ use core::marker::PhantomData;
 use cortex_m::asm;
 
 use crate::hal::Timer as TimerTrait;
+use crate::event::Event;
+use cortex_m::interrupt::Mutex;
+use cortex_m::interrupt;
+use core::cell::RefCell;
 
 // Timer peripheral and NVIC constants (from original file)
 const TIMER_BASES: [u32; 3] = [0x4000_8000, 0x4000_9000, 0x4000_A000];
@@ -21,7 +25,7 @@ const CC0_OFFSET: u32 = 0x540;
 
 const TIMER_MODE_TIMER: u32 = 0;
 const TIMER_BITMODE_32BIT: u32 = 3; // 32-bit counter
-const TIMER_PRESCALER_256: u32 = 8; // divide 16 MHz by 2^8 ≈ 62.5 kHz
+const TIMER_PRESCALER_16: u32 = 4; // divide 16 MHz by 2^4 ≈ 1 MHz
 const TIMER_INTENSET_COMPARE0: u32 = 1 << 16; // enable compare0 interrupt
 
 // NVIC register block (only what we need)
@@ -38,6 +42,13 @@ static TIMER_ONE_SHOT: [AtomicBool; 3] = [
     AtomicBool::new(false),
     AtomicBool::new(false),
 ];
+
+static TIMER0_EVENT: Mutex<RefCell<Option<Event>>> =
+    Mutex::new(RefCell::new(None));
+static TIMER1_EVENT: Mutex<RefCell<Option<Event>>> =
+    Mutex::new(RefCell::new(None));
+static TIMER2_EVENT: Mutex<RefCell<Option<Event>>> =
+    Mutex::new(RefCell::new(None));
 
 pub mod typestate {
     pub struct NotConfigured;
@@ -92,7 +103,7 @@ impl<const IDX: u8> TimerPeripheral<Running, IDX> {
             write_volatile(self.reg(TASKS_CLEAR_OFFSET), 1);
             write_volatile(self.reg(MODE_OFFSET), TIMER_MODE_TIMER);
             write_volatile(self.reg(BITMODE_OFFSET), TIMER_BITMODE_32BIT);
-            write_volatile(self.reg(PRESCALER_OFFSET), TIMER_PRESCALER_256);
+            write_volatile(self.reg(PRESCALER_OFFSET), TIMER_PRESCALER_16);
 
             write_volatile(self.reg(CC0_OFFSET), period);
             write_volatile(self.reg(EVENTS_COMPARE0_OFFSET), 0);
@@ -104,15 +115,32 @@ impl<const IDX: u8> TimerPeripheral<Running, IDX> {
 }
 
 impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
-    fn delay_ms(&mut self, ms: u32) {
-        let period = ms.saturating_mul(50);
-        self.arm_delay(period);
+    fn start(&mut self, frequency_us: u32, event: Event) {
+        // store the event in the corresponding static slot
+        match IDX {
+            0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = Some(event)),
+            1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = Some(event)),
+            2 => cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = Some(event)),
+            _ => {}
+        }
 
-        let fired = self.fired_flag();
-        while !fired.load(Ordering::Acquire) {
-            asm::wfi();
+        // TODO: configure hardware timer frequency
+        // For now just arm a default short period so IRQ will fire.
+        self.arm_delay(frequency_us);
+    }
+
+    fn stop(&mut self) {
+        // stop timer and clear stored event for this index
+        unsafe { write_volatile(self.reg(TASKS_STOP_OFFSET), 1); }
+        match IDX {
+            0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = None),
+            1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = None),
+            2 => cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = None),
+            _ => {}
         }
     }
+
+    fn is_running(&self) -> bool { !self.fired_flag().load(Ordering::Relaxed) }
 }
 
 // Generate a small board-level `Timer` collection with fields `t0..t2`.
@@ -140,6 +168,7 @@ unsafe fn handle_timer_irq(idx: usize) {
 
     let events = (TIMER_BASES[idx] + EVENTS_COMPARE0_OFFSET) as *mut u32;
     let stop = (TIMER_BASES[idx] + TASKS_STOP_OFFSET) as *mut u32;
+    let reset = (TIMER_BASES[idx] + TASKS_CLEAR_OFFSET) as *mut u32;
 
     write_volatile(events, 0);
 
@@ -148,6 +177,17 @@ unsafe fn handle_timer_irq(idx: usize) {
     }
 
     TIMER_FIRED[idx].store(true, Ordering::Release);
+
+    // Trigger registered event if any
+    match idx {
+        0 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER0_EVENT.borrow(cs).borrow() { e.trigger(); }),
+        1 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER1_EVENT.borrow(cs).borrow() { e.trigger(); }),
+        2 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER2_EVENT.borrow(cs).borrow() { e.trigger(); }),
+        _ => (),
+    }
+
+    // clear the timer cc register, so it can trigger again.
+    write_volatile(reset, 1);
 }
 
 // Interrupt handlers for TIMER0/1/2 compare0
