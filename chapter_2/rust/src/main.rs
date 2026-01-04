@@ -9,9 +9,8 @@ mod arch;
 mod event;
 mod debouncer;
 
-use crate::hal::{Timer as TimerTrait};
+use crate::hal::{Timer as TimerTrait, ConfigurablePin};
 use arch::{GpioImpl, TimerImpl};
-use crate::event::Event;
 
 
 #[entry]
@@ -30,10 +29,10 @@ fn main() -> ! {
     let mut led = gpio.p5.into_output(false, true);
 
     #[cfg(feature="nucleo")]
-    let mut but = gpio.p45.into_input();
+    let mut but = gpio.p45.into_input(crate::hal::Pull::Up);
 
     #[cfg(feature="qemu")]
-    let mut but = gpio.p0.into_input();
+    let mut but = gpio.p0.into_input(crate::hal::Pull::None);
 
     // Create an event (static storage) and start the timer to trigger it.
     let ev = crate::make_event!();

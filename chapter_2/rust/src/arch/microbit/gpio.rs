@@ -104,6 +104,26 @@ impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
     }
 }
 
+// Implement the generic configurable trait so higher-level code can use
+// `into_input(pull)` and `into_output(...)` uniformly across backends.
+impl<const INDEX: u8> crate::hal::ConfigurablePin for Pin<NotConfigured, INDEX> {
+    type Input = Pin<Input, INDEX>;
+    type Output = Pin<Output, INDEX>;
+
+    fn into_input(self, _pull: crate::hal::Pull) -> Self::Input {
+        // nRF51 (micro:bit) does not use the same PUPDR mechanism; pull settings
+        // are ignored here. Simply clear the direction bit to make it input.
+        let bit = 1u32 << INDEX;
+        unsafe { core::ptr::write_volatile(GPIO_DIRCLR, bit); }
+        Pin::new()
+    }
+
+    fn into_output(self, open_drain: bool, initial_high: bool) -> Self::Output {
+        // Reuse existing implementation (open_drain ignored on micro:bit)
+        self.into_output(open_drain, initial_high)
+    }
+}
+
 impl<const INDEX: u8> Pin<Output, INDEX> {
     /// Drive the pin high or low.
     pub fn write(&mut self, high: bool) {
@@ -126,15 +146,6 @@ impl<const INDEX: u8> Pin<Input, INDEX> {
     pub fn read(&mut self) -> bool {
         let bit = 1u32 << INDEX;
         unsafe { (core::ptr::read_volatile(GPIO_IN) & bit) != 0 }
-    }
-}
-
-impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
-    /// Configure this pin as input (clears direction bit).
-    pub fn into_input(self) -> Pin<Input, INDEX> {
-        let bit = 1u32 << INDEX;
-        unsafe { core::ptr::write_volatile(GPIO_DIRCLR, bit); }
-        Pin::new()
     }
 }
 
