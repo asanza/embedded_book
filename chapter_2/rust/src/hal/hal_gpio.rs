@@ -1,6 +1,7 @@
 #![allow(dead_code)]
-use crate::event::Event;
+use crate::hal::utils::Event;
 
+/// Basic GPIO read/write trait.
 pub trait Gpio {
     fn write(&mut self, high: bool);
     fn read(&mut self) -> bool;
@@ -36,15 +37,4 @@ pub trait ConfigurablePin {
 pub trait InputInterrupt {
     fn enable_interrupt(&mut self, edge: Edge, ev: Event);
     fn disable_interrupt(&mut self);
-}
-
-pub trait Timer {
-    /// Start the timer with a given frequency and event
-    fn start(&mut self, frequency_us: u32, event: Event);
-
-    /// Stop the timer
-    fn stop(&mut self);
-
-    /// Check if timer is running
-    fn is_running(&self) -> bool;
 }

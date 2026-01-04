@@ -2,7 +2,7 @@ use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::marker::PhantomData;
 use cortex_m::asm;
-use crate::event::Event;
+use crate::hal::utils::Event;
 use cortex_m::interrupt::Mutex;
 // `cortex_m::interrupt` not needed here
 use core::cell::RefCell;
@@ -60,7 +60,7 @@ static TIM4_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM4_ONE_SHOT: AtomicBool = AtomicBool::new(false);
 static TIM4_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
 
-use crate::hal::Timer as TimerTrait;
+use crate::hal::hal_timer::Timer as TimerTrait;
 
 pub mod typestate {
     pub struct NotConfigured;

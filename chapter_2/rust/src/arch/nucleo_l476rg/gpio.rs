@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Diego Asanza <f.asanza@gmail.com>
+
 use core::marker::PhantomData;
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::hal::Gpio as GpioTrait;
+use crate::hal::hal_gpio::Gpio as GpioTrait;
+use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
 
 // STM32L476 register map (GPIO) for Nucleo board.
 const RCC_BASE: u32 = 0x4002_1000;
@@ -25,27 +29,24 @@ pub mod typestate {
     pub struct Input;
 }
 
-// IRQ handlers for EXTI lines. These will be referenced from the vector table.
+// IRQ handlers for EXTI lines. These are small wrappers that call the
+// common handler which clears the pending bit and invokes a registered event.
 #[no_mangle]
 pub extern "C" fn EXTI0() {
     exti_common_handler(0);
 }
-
 #[no_mangle]
 pub extern "C" fn EXTI1() {
     exti_common_handler(1);
 }
-
 #[no_mangle]
 pub extern "C" fn EXTI2() {
     exti_common_handler(2);
 }
-
 #[no_mangle]
 pub extern "C" fn EXTI3() {
     exti_common_handler(3);
 }
-
 #[no_mangle]
 pub extern "C" fn EXTI4() {
     exti_common_handler(4);
@@ -54,8 +55,8 @@ pub extern "C" fn EXTI4() {
 #[no_mangle]
 pub extern "C" fn EXTI9_5() {
     unsafe {
-        let pr = core::ptr::read_volatile(EXTI_PR);
-        let mask = pr & 0x000003E0; // bits 5..9
+        let pr = read_volatile(EXTI_PR);
+        let mask = pr & 0x0000_03E0; // bits 5..9
         if mask != 0 {
             for i in 5..=9 {
                 if (mask & (1 << i)) != 0 {
@@ -69,8 +70,8 @@ pub extern "C" fn EXTI9_5() {
 #[no_mangle]
 pub extern "C" fn EXTI15_10() {
     unsafe {
-        let pr = core::ptr::read_volatile(EXTI_PR);
-        let mask = pr & 0x0000FC00; // bits 10..15
+        let pr = read_volatile(EXTI_PR);
+        let mask = pr & 0x0000_FC00; // bits 10..15
         if mask != 0 {
             for i in 10..=15 {
                 if (mask & (1 << i)) != 0 {
@@ -84,8 +85,8 @@ pub extern "C" fn EXTI15_10() {
 fn exti_common_handler(line: u8) {
     let bit = 1u32 << line;
     unsafe {
-        // Only act if the pending bit is set. Clear it (W1C) then trigger event.
         if (read_volatile(EXTI_PR) & bit) != 0 {
+            // Clear pending (W1C) and invoke any registered event.
             write_volatile(EXTI_PR, bit);
             cortex_m::interrupt::free(|cs| {
                 let idx = (line % 16) as usize;
@@ -99,9 +100,9 @@ fn exti_common_handler(line: u8) {
 
 use typestate::*;
 
-use crate::event::Event;
-use cortex_m::interrupt::Mutex;
+use crate::hal::utils::{Event};
 use core::cell::RefCell;
+use cortex_m::interrupt::Mutex;
 
 // EXTI / SYSCFG registers (STM32L4 typical addresses)
 const SYSCFG_BASE: u32 = 0x4001_0000;
@@ -114,10 +115,22 @@ const EXTI_PR: *mut u32 = (EXTI_BASE + 0x14) as *mut u32;
 
 // Registry for EXTI lines 0..15
 static EXTI_EVENTS: [Mutex<RefCell<Option<Event>>>; 16] = [
-    Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)),
-    Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)),
-    Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)),
-    Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)), Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
+    Mutex::new(RefCell::new(None)),
 ];
 
 // Helper to compute SYSCFG EXTICR index/shift for a pin
@@ -136,10 +149,14 @@ fn port_code_for_pin(pin: u8) -> u32 {
 
 // Small GPIO helpers
 #[inline(always)]
-fn gpio_base(pin: u8) -> u32 { GPIO_BASES[(pin / 16) as usize] }
+fn gpio_base(pin: u8) -> u32 {
+    GPIO_BASES[(pin / 16) as usize]
+}
 
 #[inline(always)]
-fn gpio_bit(pin: u8) -> u32 { 1u32 << (pin % 16) }
+fn gpio_bit(pin: u8) -> u32 {
+    1u32 << (pin % 16)
+}
 
 // NVIC helpers
 const NVIC_ISER_BASE: u32 = 0xE000_E100;
@@ -249,7 +266,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
         unsafe { (core::ptr::read_volatile(idr) & mask) != 0 }
     }
 
-    pub fn enable_interrupt(&mut self, edge: crate::hal::Edge, ev: Event) {
+    pub fn enable_interrupt(&mut self, edge: Edge, ev: Event) {
         let pin = PIN;
         let (idx, shift) = exticr_index_shift(pin);
         let line = (pin % 16) as u32;
@@ -271,15 +288,21 @@ impl<const PIN: u8> Pin<Input, PIN> {
             // use precomputed line/bit
             // configure triggers
             match edge {
-                crate::hal::Edge::Rising => {
+                Edge::Rising => {
                     core::ptr::write_volatile(EXTI_RTSR, core::ptr::read_volatile(EXTI_RTSR) | bit);
-                    core::ptr::write_volatile(EXTI_FTSR, core::ptr::read_volatile(EXTI_FTSR) & !bit);
+                    core::ptr::write_volatile(
+                        EXTI_FTSR,
+                        core::ptr::read_volatile(EXTI_FTSR) & !bit,
+                    );
                 }
-                crate::hal::Edge::Falling => {
+                Edge::Falling => {
                     core::ptr::write_volatile(EXTI_FTSR, core::ptr::read_volatile(EXTI_FTSR) | bit);
-                    core::ptr::write_volatile(EXTI_RTSR, core::ptr::read_volatile(EXTI_RTSR) & !bit);
+                    core::ptr::write_volatile(
+                        EXTI_RTSR,
+                        core::ptr::read_volatile(EXTI_RTSR) & !bit,
+                    );
                 }
-                crate::hal::Edge::Both => {
+                Edge::Both => {
                     core::ptr::write_volatile(EXTI_RTSR, core::ptr::read_volatile(EXTI_RTSR) | bit);
                     core::ptr::write_volatile(EXTI_FTSR, core::ptr::read_volatile(EXTI_FTSR) | bit);
                 }
@@ -291,7 +314,9 @@ impl<const PIN: u8> Pin<Input, PIN> {
         }
 
         cortex_m::interrupt::free(|cs| {
-            EXTI_EVENTS[(PIN % 16) as usize].borrow(cs).replace(Some(ev));
+            EXTI_EVENTS[(PIN % 16) as usize]
+                .borrow(cs)
+                .replace(Some(ev));
         });
 
         // enable NVIC for the EXTI group covering this line
@@ -330,11 +355,11 @@ impl<const PIN: u8> Pin<NotConfigured, PIN> {
     // The actual constructors are provided via the `ConfigurablePin` trait
 }
 
-impl<const PIN: u8> crate::hal::ConfigurablePin for Pin<NotConfigured, PIN> {
+impl<const PIN: u8> ConfigurablePin for Pin<NotConfigured, PIN> {
     type Input = Pin<Input, PIN>;
     type Output = Pin<Output, PIN>;
 
-    fn into_input(self, pull: crate::hal::Pull) -> Self::Input {
+    fn into_input(self, pull: Pull) -> Self::Input {
         let port = (PIN / 16) as usize;
         assert!(port < GPIO_BASES.len());
         let bit = (PIN % 16) as u32;
@@ -358,10 +383,10 @@ impl<const PIN: u8> crate::hal::ConfigurablePin for Pin<NotConfigured, PIN> {
             let mut p = core::ptr::read_volatile(pupdr);
             p &= !(0b11 << pupdr_shift);
             match pull {
-                crate::hal::Pull::None => { /* leave 00 */ }
-                crate::hal::Pull::Up => p |= 0b01 << pupdr_shift,
-                crate::hal::Pull::Down => p |= 0b10 << pupdr_shift,
-                crate::hal::Pull::Both => p |= 0b11 << pupdr_shift,
+                Pull::None => { /* leave 00 */ }
+                Pull::Up => p |= 0b01 << pupdr_shift,
+                Pull::Down => p |= 0b10 << pupdr_shift,
+                Pull::Both => p |= 0b11 << pupdr_shift,
             }
             core::ptr::write_volatile(pupdr, p);
         }
@@ -425,7 +450,9 @@ impl<const PIN: u8> GpioTrait for Pin<Output, PIN> {
     fn write(&mut self, high: bool) {
         self.write(high);
     }
-    fn read(&mut self) -> bool { self.read() }
+    fn read(&mut self) -> bool {
+        self.read()
+    }
 }
 
 // Generate Gpio struct with p0..p31 fields (board-visible pins). Move-out enforces uniqueness.

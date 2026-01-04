@@ -56,7 +56,9 @@ use cortex_m::interrupt;
 #[cfg(feature = "qemu")]
 use cortex_m_semihosting::hprintln;
 
-use crate::hal::Gpio as GpioTrait;
+use crate::hal::hal_gpio::Gpio as GpioTrait;
+use crate::hal::hal_gpio::ConfigurablePin;
+use crate::hal::hal_gpio::Pull;
 
 // NRF51 (micro:bit) peripheral addresses used by the C implementation
 const GPIO_BASE: u32 = 0x5000_0000;
@@ -106,11 +108,11 @@ impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
 
 // Implement the generic configurable trait so higher-level code can use
 // `into_input(pull)` and `into_output(...)` uniformly across backends.
-impl<const INDEX: u8> crate::hal::ConfigurablePin for Pin<NotConfigured, INDEX> {
+impl<const INDEX: u8> ConfigurablePin for Pin<NotConfigured, INDEX> {
     type Input = Pin<Input, INDEX>;
     type Output = Pin<Output, INDEX>;
 
-    fn into_input(self, _pull: crate::hal::Pull) -> Self::Input {
+    fn into_input(self, _pull: Pull) -> Self::Input {
         // nRF51 (micro:bit) does not use the same PUPDR mechanism; pull settings
         // are ignored here. Simply clear the direction bit to make it input.
         let bit = 1u32 << INDEX;

@@ -6,10 +6,10 @@ use panic_halt as _;
 
 mod hal;
 mod arch;
-mod event;
-mod debouncer;
 
-use crate::hal::{Timer as TimerTrait, ConfigurablePin};
+use crate::hal::hal_timer::Timer as TimerTrait;
+use crate::hal::hal_gpio::{ConfigurablePin, Pull};
+use crate::hal::utils::{Debouncer, DebounceEdge};
 use arch::{GpioImpl, TimerImpl};
 
 
@@ -29,15 +29,14 @@ fn main() -> ! {
     let mut led = gpio.p5.into_output(false, true);
 
     #[cfg(feature="nucleo")]
-    let mut but = gpio.p45.into_input(crate::hal::Pull::Up);
+    let mut but = gpio.p45.into_input(Pull::Up);
 
     #[cfg(feature="qemu")]
-    let mut but = gpio.p0.into_input(crate::hal::Pull::None);
+    let mut but = gpio.p0.into_input(Pull::None);
 
     // Create an event (static storage) and start the timer to trigger it.
     let ev = crate::make_event!();
     timer.start(DELAY_US, ev.clone()); // 2 Hz toggling
-
     let db = crate::make_event!();
 
     let mut state = false;
@@ -51,7 +50,7 @@ fn main() -> ! {
     debounce.start(5_000, db.clone());
 
     // Create a Debouncer that samples the `but.read()` closure.
-    let mut deb = debouncer::Debouncer::new(|| but.read(), 3, pressed_level);
+    let mut deb = Debouncer::new(|| but.read(), 3, pressed_level);
 
     loop {
         if ev.poll() {
@@ -64,7 +63,7 @@ fn main() -> ! {
         if db.poll() {
             if let Some(edge) = deb.sample() {
                 match edge {
-                    debouncer::Edge::Pressed => {
+                    DebounceEdge::Pressed => {
                         if but_prev != pressed_level {
                             fast = !fast;
                             timer.stop();
@@ -72,7 +71,7 @@ fn main() -> ! {
                         }
                         but_prev = pressed_level;
                     }
-                    debouncer::Edge::Released => {
+                    DebounceEdge::Released => {
                         but_prev = !pressed_level;
                     }
                 }

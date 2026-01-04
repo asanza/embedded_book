@@ -3,8 +3,8 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use core::marker::PhantomData;
 use cortex_m::asm;
 
-use crate::hal::Timer as TimerTrait;
-use crate::event::Event;
+use crate::hal::hal_timer::Timer as TimerTrait;
+use crate::hal::utils::Event;
 use cortex_m::interrupt::Mutex;
 use core::cell::RefCell;
 
