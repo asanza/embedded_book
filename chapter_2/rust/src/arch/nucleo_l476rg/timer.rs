@@ -79,17 +79,19 @@ impl TimerPeripheral<NotConfigured, 0> {
 }
 
 impl TimerPeripheral<Running, 0> {
-    fn arm_delay(&self, ms: u32) {
+    fn arm_delay(&self, us: u32) {
         unsafe {
             TIM2_FIRED.store(false, Ordering::Release);
 
-            // Configure TIM2 for 1 kHz tick and desired period
-            let prescaler = (TIMER_CLOCK_HZ / 1_000).saturating_sub(1);
+            // Configure TIM2 for 1 MHz tick (1 us per tick) and desired period
+            let prescaler = (TIMER_CLOCK_HZ / 1_000_000).saturating_sub(1);
             write_volatile(TIM2_CR1, 0);
             write_volatile(TIM2_DIER, 0);
             write_volatile(TIM2_SR, 0);
             write_volatile(TIM2_PSC, prescaler);
-            let arr = if ms == 0 { 1 } else { ms };
+
+            // ARR is the number of ticks (in microseconds)
+            let arr = if us == 0 { 1 } else { us };
             write_volatile(TIM2_ARR, arr);
             write_volatile(TIM2_CNT, 0);
             write_volatile(TIM2_EGR, TIM_EGR_UG); // load prescaler immediately (sets UIF)
@@ -106,11 +108,10 @@ impl TimerPeripheral<Running, 0> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 0> {
-    fn start(&mut self, frequency_hz: u32, event: Event) {
+    fn start(&mut self, us: u32, event: Event) {
         cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = Some(event));
         // configure hardware timer to desired frequency (omitted)
-        let ms = 1000 / (frequency_hz.max(1));
-        self.arm_delay(ms as u32);
+        self.arm_delay(us);
     }
 
     fn stop(&mut self) {
