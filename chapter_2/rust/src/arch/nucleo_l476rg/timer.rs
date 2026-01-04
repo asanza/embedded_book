@@ -17,6 +17,26 @@ const TIM2_CNT: *mut u32 = (TIM2_BASE + 0x24) as *mut u32;
 const TIM2_PSC: *mut u32 = (TIM2_BASE + 0x28) as *mut u32;
 const TIM2_ARR: *mut u32 = (TIM2_BASE + 0x2C) as *mut u32;
 
+// TIM3 peripheral (same register layout offset)
+const TIM3_BASE: u32 = 0x4000_0400;
+const TIM3_CR1: *mut u32 = (TIM3_BASE + 0x00) as *mut u32;
+const TIM3_DIER: *mut u32 = (TIM3_BASE + 0x0C) as *mut u32;
+const TIM3_SR: *mut u32 = (TIM3_BASE + 0x10) as *mut u32;
+const TIM3_EGR: *mut u32 = (TIM3_BASE + 0x14) as *mut u32;
+const TIM3_CNT: *mut u32 = (TIM3_BASE + 0x24) as *mut u32;
+const TIM3_PSC: *mut u32 = (TIM3_BASE + 0x28) as *mut u32;
+const TIM3_ARR: *mut u32 = (TIM3_BASE + 0x2C) as *mut u32;
+
+// TIM4 peripheral
+const TIM4_BASE: u32 = 0x4000_0800;
+const TIM4_CR1: *mut u32 = (TIM4_BASE + 0x00) as *mut u32;
+const TIM4_DIER: *mut u32 = (TIM4_BASE + 0x0C) as *mut u32;
+const TIM4_SR: *mut u32 = (TIM4_BASE + 0x10) as *mut u32;
+const TIM4_EGR: *mut u32 = (TIM4_BASE + 0x14) as *mut u32;
+const TIM4_CNT: *mut u32 = (TIM4_BASE + 0x24) as *mut u32;
+const TIM4_PSC: *mut u32 = (TIM4_BASE + 0x28) as *mut u32;
+const TIM4_ARR: *mut u32 = (TIM4_BASE + 0x2C) as *mut u32;
+
 const TIM_CR1_CEN: u32 = 1 << 0;
 const TIM_DIER_UIE: u32 = 1 << 0;
 const TIM_SR_UIF: u32 = 1 << 0;
@@ -24,6 +44,8 @@ const TIM_EGR_UG: u32 = 1 << 0;
 
 const NVIC_ISER0: *mut u32 = 0xE000_E100 as *mut u32;
 const TIM2_IRQ_BIT: u32 = 1 << 28; // TIM2 IRQn = 28
+const TIM3_IRQ_BIT: u32 = 1 << 29; // TIM3 IRQn = 29
+const TIM4_IRQ_BIT: u32 = 1 << 30; // TIM4 IRQn = 30
 
 // Assume default 4 MHz MSI unless startup changes it. Adjust if clocks change.
 const TIMER_CLOCK_HZ: u32 = 4_000_000;
@@ -31,6 +53,12 @@ const TIMER_CLOCK_HZ: u32 = 4_000_000;
 static TIM2_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM2_ONE_SHOT: AtomicBool = AtomicBool::new(false);
 static TIM2_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIM3_FIRED: AtomicBool = AtomicBool::new(false);
+static TIM3_ONE_SHOT: AtomicBool = AtomicBool::new(false);
+static TIM3_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIM4_FIRED: AtomicBool = AtomicBool::new(false);
+static TIM4_ONE_SHOT: AtomicBool = AtomicBool::new(false);
+static TIM4_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
 
 use crate::hal::Timer as TimerTrait;
 
@@ -78,6 +106,62 @@ impl TimerPeripheral<NotConfigured, 0> {
     }
 }
 
+impl TimerPeripheral<NotConfigured, 1> {
+    /// Initialize TIM3 and enable its IRQ; transition to `Running`.
+    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 1> {
+        TIM3_ONE_SHOT.store(one_shot, Ordering::Release);
+
+        unsafe {
+            // Enable TIM3 clock on APB1 (TIM3EN is bit 1)
+            let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+            apb |= 1 << 1; // TIM3EN
+            write_volatile((0x4002_1000 + 0x58) as *mut u32, apb);
+            let _ = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+
+            // Reset TIM3 then release
+            let mut rst = read_volatile((0x4002_1000 + 0x38) as *mut u32);
+            rst |= 1 << 1; // TIM3RST
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+            rst &= !(1 << 1);
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+
+            // Enable TIM3 IRQ in NVIC
+            let iser = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, iser | TIM3_IRQ_BIT);
+        }
+
+        TimerPeripheral::new()
+    }
+}
+
+impl TimerPeripheral<NotConfigured, 2> {
+    /// Initialize TIM4 and enable its IRQ; transition to `Running`.
+    pub fn into_running(self, one_shot: bool) -> TimerPeripheral<Running, 2> {
+        TIM4_ONE_SHOT.store(one_shot, Ordering::Release);
+
+        unsafe {
+            // Enable TIM4 clock on APB1 (TIM4EN is bit 2)
+            let mut apb = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+            apb |= 1 << 2; // TIM4EN
+            write_volatile((0x4002_1000 + 0x58) as *mut u32, apb);
+            let _ = read_volatile((0x4002_1000 + 0x58) as *mut u32);
+
+            // Reset TIM4 then release
+            let mut rst = read_volatile((0x4002_1000 + 0x38) as *mut u32);
+            rst |= 1 << 2; // TIM4RST
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+            rst &= !(1 << 2);
+            write_volatile((0x4002_1000 + 0x38) as *mut u32, rst);
+
+            // Enable TIM4 IRQ in NVIC
+            let iser = read_volatile(NVIC_ISER0);
+            write_volatile(NVIC_ISER0, iser | TIM4_IRQ_BIT);
+        }
+
+        TimerPeripheral::new()
+    }
+}
+
 impl TimerPeripheral<Running, 0> {
     fn arm_delay(&self, us: u32) {
         unsafe {
@@ -107,6 +191,60 @@ impl TimerPeripheral<Running, 0> {
     }
 }
 
+impl TimerPeripheral<Running, 1> {
+    fn arm_delay(&self, us: u32) {
+        unsafe {
+            TIM3_FIRED.store(false, Ordering::Release);
+
+            let prescaler = (TIMER_CLOCK_HZ / 1_000_000).saturating_sub(1);
+            write_volatile(TIM3_CR1, 0);
+            write_volatile(TIM3_DIER, 0);
+            write_volatile(TIM3_SR, 0);
+            write_volatile(TIM3_PSC, prescaler);
+
+            let arr = if us == 0 { 1 } else { us };
+            write_volatile(TIM3_ARR, arr);
+            write_volatile(TIM3_CNT, 0);
+            write_volatile(TIM3_EGR, TIM_EGR_UG);
+            write_volatile(TIM3_SR, 0);
+
+            write_volatile(TIM3_DIER, TIM_DIER_UIE);
+            write_volatile(TIM3_CR1, TIM_CR1_CEN);
+        }
+    }
+
+    fn fired_flag(&self) -> &AtomicBool {
+        &TIM3_FIRED
+    }
+}
+
+impl TimerPeripheral<Running, 2> {
+    fn arm_delay(&self, us: u32) {
+        unsafe {
+            TIM4_FIRED.store(false, Ordering::Release);
+
+            let prescaler = (TIMER_CLOCK_HZ / 1_000_000).saturating_sub(1);
+            write_volatile(TIM4_CR1, 0);
+            write_volatile(TIM4_DIER, 0);
+            write_volatile(TIM4_SR, 0);
+            write_volatile(TIM4_PSC, prescaler);
+
+            let arr = if us == 0 { 1 } else { us };
+            write_volatile(TIM4_ARR, arr);
+            write_volatile(TIM4_CNT, 0);
+            write_volatile(TIM4_EGR, TIM_EGR_UG);
+            write_volatile(TIM4_SR, 0);
+
+            write_volatile(TIM4_DIER, TIM_DIER_UIE);
+            write_volatile(TIM4_CR1, TIM_CR1_CEN);
+        }
+    }
+
+    fn fired_flag(&self) -> &AtomicBool {
+        &TIM4_FIRED
+    }
+}
+
 impl TimerTrait for TimerPeripheral<Running, 0> {
     fn start(&mut self, us: u32, event: Event) {
         cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = Some(event));
@@ -128,6 +266,44 @@ impl TimerTrait for TimerPeripheral<Running, 0> {
     }
 }
 
+impl TimerTrait for TimerPeripheral<Running, 1> {
+    fn start(&mut self, us: u32, event: Event) {
+        cortex_m::interrupt::free(|cs| *TIM3_EVENT.borrow(cs).borrow_mut() = Some(event));
+        self.arm_delay(us);
+    }
+
+    fn stop(&mut self) {
+        unsafe {
+            write_volatile(TIM3_CR1, read_volatile(TIM3_CR1) & !TIM_CR1_CEN);
+            write_volatile(TIM3_DIER, 0);
+        }
+        cortex_m::interrupt::free(|cs| *TIM3_EVENT.borrow(cs).borrow_mut() = None);
+    }
+
+    fn is_running(&self) -> bool {
+        unsafe { read_volatile(TIM3_CR1) & TIM_CR1_CEN != 0 }
+    }
+}
+
+impl TimerTrait for TimerPeripheral<Running, 2> {
+    fn start(&mut self, us: u32, event: Event) {
+        cortex_m::interrupt::free(|cs| *TIM4_EVENT.borrow(cs).borrow_mut() = Some(event));
+        self.arm_delay(us);
+    }
+
+    fn stop(&mut self) {
+        unsafe {
+            write_volatile(TIM4_CR1, read_volatile(TIM4_CR1) & !TIM_CR1_CEN);
+            write_volatile(TIM4_DIER, 0);
+        }
+        cortex_m::interrupt::free(|cs| *TIM4_EVENT.borrow(cs).borrow_mut() = None);
+    }
+
+    fn is_running(&self) -> bool {
+        unsafe { read_volatile(TIM4_CR1) & TIM_CR1_CEN != 0 }
+    }
+}
+
 // Generate a simple Timer collection with t0 field.
 macro_rules! make_timers {
     ($($idx:expr),*) => {
@@ -145,7 +321,7 @@ macro_rules! make_timers {
     }
 }
 
-make_timers!(0);
+make_timers!(0,1,2);
 
 #[no_mangle]
 pub extern "C" fn TIM2() {
@@ -161,6 +337,42 @@ pub extern "C" fn TIM2() {
     // trigger event if registered
     cortex_m::interrupt::free(|cs| {
         if let Some(ref e) = *TIM2_EVENT.borrow(cs).borrow() {
+            e.trigger();
+        }
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn TIM3() {
+    unsafe {
+        if read_volatile(TIM3_SR) & TIM_SR_UIF != 0 {
+            write_volatile(TIM3_SR, read_volatile(TIM3_SR) & !TIM_SR_UIF);
+            if TIM3_ONE_SHOT.load(Ordering::Relaxed) {
+                write_volatile(TIM3_CR1, read_volatile(TIM3_CR1) & !TIM_CR1_CEN);
+            }
+        }
+    }
+    TIM3_FIRED.store(true, Ordering::Release);
+    cortex_m::interrupt::free(|cs| {
+        if let Some(ref e) = *TIM3_EVENT.borrow(cs).borrow() {
+            e.trigger();
+        }
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn TIM4() {
+    unsafe {
+        if read_volatile(TIM4_SR) & TIM_SR_UIF != 0 {
+            write_volatile(TIM4_SR, read_volatile(TIM4_SR) & !TIM_SR_UIF);
+            if TIM4_ONE_SHOT.load(Ordering::Relaxed) {
+                write_volatile(TIM4_CR1, read_volatile(TIM4_CR1) & !TIM_CR1_CEN);
+            }
+        }
+    }
+    TIM4_FIRED.store(true, Ordering::Release);
+    cortex_m::interrupt::free(|cs| {
+        if let Some(ref e) = *TIM4_EVENT.borrow(cs).borrow() {
             e.trigger();
         }
     });

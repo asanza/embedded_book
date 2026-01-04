@@ -51,6 +51,7 @@ SOFTWARE.
 
 use core::marker::PhantomData;
 use core::ptr::write_volatile;
+#[allow(unused_imports)]
 use cortex_m::interrupt;
 #[cfg(feature = "qemu")]
 use cortex_m_semihosting::hprintln;
@@ -62,6 +63,8 @@ const GPIO_BASE: u32 = 0x5000_0000;
 const GPIO_OUTSET: *mut u32 = (GPIO_BASE + 0x508) as *mut u32;
 const GPIO_OUTCLR: *mut u32 = (GPIO_BASE + 0x50C) as *mut u32;
 const GPIO_DIRSET: *mut u32 = (GPIO_BASE + 0x518) as *mut u32;
+const GPIO_DIRCLR: *mut u32 = (GPIO_BASE + 0x51C) as *mut u32;
+const GPIO_IN: *const u32 = (GPIO_BASE + 0x510) as *const u32;
 
 // Note: we no longer track a global init mask; DIRSET is idempotent on nRF
 // (writing the same bit repeatedly is harmless), so we do a direct write.
@@ -110,10 +113,39 @@ impl<const INDEX: u8> Pin<Output, INDEX> {
         }
         #[cfg(feature = "qemu")] { let _ = hprintln!("GPIO pin {} = {}", INDEX, if high { 1 } else { 0 }); }
     }
+
+    /// Read the pin level from the input register (works for output pins too).
+    pub fn read(&mut self) -> bool {
+        let bit = 1u32 << INDEX;
+        unsafe { (core::ptr::read_volatile(GPIO_IN) & bit) != 0 }
+    }
+}
+
+impl<const INDEX: u8> Pin<Input, INDEX> {
+    /// Read the current input level for this pin.
+    pub fn read(&mut self) -> bool {
+        let bit = 1u32 << INDEX;
+        unsafe { (core::ptr::read_volatile(GPIO_IN) & bit) != 0 }
+    }
+}
+
+impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
+    /// Configure this pin as input (clears direction bit).
+    pub fn into_input(self) -> Pin<Input, INDEX> {
+        let bit = 1u32 << INDEX;
+        unsafe { core::ptr::write_volatile(GPIO_DIRCLR, bit); }
+        Pin::new()
+    }
+}
+
+impl<const INDEX: u8> GpioTrait for Pin<Input, INDEX> {
+    fn write(&mut self, _high: bool) { /* not applicable for input */ }
+    fn read(&mut self) -> bool { self.read() }
 }
 
 impl<const INDEX: u8> GpioTrait for Pin<Output, INDEX> {
     fn write(&mut self, high: bool) { self.write(high); }
+    fn read(&mut self) -> bool { self.read() }
 }
 
 // Macro-driven generation of the micro:bit pin collection and aliases.

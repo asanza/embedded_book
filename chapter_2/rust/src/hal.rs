@@ -3,6 +3,7 @@ use crate::event::Event;
 
 pub trait Gpio {
     fn write(&mut self, high: bool);
+    fn read(&mut self) -> bool;
 }
 
 pub trait Timer {

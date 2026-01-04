@@ -31,7 +31,11 @@ pub struct Pin<MODE, const PIN: u8> {
 }
 
 impl<MODE, const PIN: u8> Pin<MODE, PIN> {
-    fn new() -> Self { Pin { _marker: PhantomData } }
+    fn new() -> Self {
+        Pin {
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<const PIN: u8> Pin<NotConfigured, PIN> {
@@ -95,10 +99,65 @@ impl<const PIN: u8> Pin<Output, PIN> {
             }
         }
     }
+
+    /// Read the pin level from IDR (works for output pins too).
+    pub fn read(&mut self) -> bool {
+        let port = (PIN / 16) as usize;
+        let bit = (PIN % 16) as u32;
+        let mask = 1u32 << bit;
+        let base = GPIO_BASES[port];
+        let idr = (base + 0x10) as *const u32;
+        unsafe { (core::ptr::read_volatile(idr) & mask) != 0 }
+    }
+}
+
+impl<const PIN: u8> Pin<Input, PIN> {
+    pub fn read(&mut self) -> bool {
+        let port = (PIN / 16) as usize;
+        let bit = (PIN % 16) as u32;
+        let mask = 1u32 << bit;
+        let base = GPIO_BASES[port];
+        let idr = (base + 0x10) as *const u32;
+        unsafe { (core::ptr::read_volatile(idr) & mask) != 0 }
+    }
+}
+
+impl<const PIN: u8> Pin<NotConfigured, PIN> {
+    pub fn into_input(self) -> Pin<Input, PIN> {
+        let port = (PIN / 16) as usize;
+        assert!(port < GPIO_BASES.len());
+        let bit = (PIN % 16) as u32;
+        let base = GPIO_BASES[port];
+        let moder = (base + 0x00) as *mut u32;
+        unsafe {
+            // Enable GPIO clock
+            let mut ahb = core::ptr::read_volatile(RCC_AHB2ENR);
+            ahb |= 1 << port;
+            core::ptr::write_volatile(RCC_AHB2ENR, ahb);
+
+            // Clear mode bits to 00 (input)
+            let shift = bit * 2;
+            let mut m = core::ptr::read_volatile(moder);
+            m &= !(0b11 << shift);
+            core::ptr::write_volatile(moder, m);
+        }
+
+        Pin::new()
+    }
+}
+
+impl<const PIN: u8> GpioTrait for Pin<Input, PIN> {
+    fn write(&mut self, _high: bool) {}
+    fn read(&mut self) -> bool {
+        self.read()
+    }
 }
 
 impl<const PIN: u8> GpioTrait for Pin<Output, PIN> {
-    fn write(&mut self, high: bool) { self.write(high); }
+    fn write(&mut self, high: bool) {
+        self.write(high);
+    }
+    fn read(&mut self) -> bool { self.read() }
 }
 
 // Generate Gpio struct with p0..p31 fields (board-visible pins). Move-out enforces uniqueness.
@@ -118,4 +177,7 @@ macro_rules! make_pins {
     }
 }
 
-make_pins!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31);
+make_pins!(
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45
+);

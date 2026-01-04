@@ -44,8 +44,8 @@ pub static __INTERRUPTS: [Handler; 64] = [
     timer::default_handler, // 26 TIM1_TRG_COM_TIM17
     timer::default_handler, // 27 TIM1_CC
     timer::TIM2,            // 28 TIM2
-    timer::default_handler, // 29 TIM3
-    timer::default_handler, // 30 TIM4
+    timer::TIM3,            // 29 TIM3
+    timer::TIM4,            // 30 TIM4
     timer::default_handler, // 31 I2C1_EV
     timer::default_handler, // 32 I2C1_ER
     timer::default_handler, // 33 I2C2_EV
