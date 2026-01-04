@@ -38,10 +38,8 @@ fn main() -> ! {
                                        // (no separate sampling event used with one-shot debouncer)
 
     let mut state = false;
-    // Read initial button state to track transitions.
-    let mut but_prev = but.read();
-    let idle_level = but_prev;
-    let pressed_level = !idle_level;
+    // Read initial button state to compute pressed polarity.
+    let pressed_level = !but.read();
     // Logical toggle state: false = slow (500ms), true = fast (100ms)
     let mut fast = false;
     // Create a DebouncerOneShot using a closure reader over `but`.
@@ -57,19 +55,16 @@ fn main() -> ! {
         if let Some(edge) = deb.poll() {
             match edge {
                 DebounceEdge::Pressed => {
-                    if but_prev != pressed_level {
-                        fast = !fast;
-                        timer.stop();
-                        if fast {
-                            timer.start(50_000, ev.clone());
-                        } else {
-                            timer.start(500_000, ev.clone());
-                        }
+                    fast = !fast;
+                    timer.stop();
+                    if fast {
+                        timer.start(50_000, ev.clone());
+                    } else {
+                        timer.start(500_000, ev.clone());
                     }
-                    but_prev = pressed_level;
                 }
                 DebounceEdge::Released => {
-                    but_prev = !pressed_level;
+                    // no-op
                 }
             }
         }
