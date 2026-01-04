@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use cortex_m::asm;
 use crate::event::Event;
 use cortex_m::interrupt::Mutex;
-use cortex_m::interrupt;
+// `cortex_m::interrupt` not needed here
 use core::cell::RefCell;
 
 // TIM2 peripheral (interrupt-driven delay)

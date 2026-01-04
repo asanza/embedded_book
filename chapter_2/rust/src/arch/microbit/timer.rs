@@ -6,7 +6,6 @@ use cortex_m::asm;
 use crate::hal::Timer as TimerTrait;
 use crate::event::Event;
 use cortex_m::interrupt::Mutex;
-use cortex_m::interrupt;
 use core::cell::RefCell;
 
 // Timer peripheral and NVIC constants (from original file)

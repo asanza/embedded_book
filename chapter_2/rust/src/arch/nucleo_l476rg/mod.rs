@@ -21,11 +21,11 @@ pub static __INTERRUPTS: [Handler; 64] = [
     timer::default_handler, // 3 RTC_WKUP
     timer::default_handler, // 4 FLASH
     timer::default_handler, // 5 RCC
-    timer::default_handler, // 6 EXTI0
-    timer::default_handler, // 7 EXTI1
-    timer::default_handler, // 8 EXTI2
-    timer::default_handler, // 9 EXTI3
-    timer::default_handler, // 10 EXTI4
+    gpio::EXTI0, // 6 EXTI0
+    gpio::EXTI1, // 7 EXTI1
+    gpio::EXTI2, // 8 EXTI2
+    gpio::EXTI3, // 9 EXTI3
+    gpio::EXTI4, // 10 EXTI4
     timer::default_handler, // 11 DMA1_CH1
     timer::default_handler, // 12 DMA1_CH2
     timer::default_handler, // 13 DMA1_CH3
@@ -38,7 +38,7 @@ pub static __INTERRUPTS: [Handler; 64] = [
     timer::default_handler, // 20 CAN1_RX0
     timer::default_handler, // 21 CAN1_RX1
     timer::default_handler, // 22 CAN1_SCE
-    timer::default_handler, // 23 EXTI9_5
+    gpio::EXTI9_5, // 23 EXTI9_5
     timer::default_handler, // 24 TIM1_BRK_TIM15
     timer::default_handler, // 25 TIM1_UP_TIM16
     timer::default_handler, // 26 TIM1_TRG_COM_TIM17
@@ -55,7 +55,7 @@ pub static __INTERRUPTS: [Handler; 64] = [
     timer::default_handler, // 37 USART1
     timer::default_handler, // 38 USART2
     timer::default_handler, // 39 USART3
-    timer::default_handler, // 40 EXTI15_10
+    gpio::EXTI15_10, // 40 EXTI15_10
     timer::default_handler, // 41 RTC_Alarm
     timer::default_handler, // 42 DFSDM1_FLT3
     timer::default_handler, // 43 TIM8_BRK
