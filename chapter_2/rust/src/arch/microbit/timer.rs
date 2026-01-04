@@ -1,12 +1,12 @@
+use core::marker::PhantomData;
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
-use core::marker::PhantomData;
 use cortex_m::asm;
 
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::Event;
-use cortex_m::interrupt::Mutex;
 use core::cell::RefCell;
+use cortex_m::interrupt::Mutex;
 
 // Timer peripheral and NVIC constants (from original file)
 const TIMER_BASES: [u32; 3] = [0x4000_8000, 0x4000_9000, 0x4000_A000];
@@ -42,12 +42,9 @@ static TIMER_ONE_SHOT: [AtomicBool; 3] = [
     AtomicBool::new(false),
 ];
 
-static TIMER0_EVENT: Mutex<RefCell<Option<Event>>> =
-    Mutex::new(RefCell::new(None));
-static TIMER1_EVENT: Mutex<RefCell<Option<Event>>> =
-    Mutex::new(RefCell::new(None));
-static TIMER2_EVENT: Mutex<RefCell<Option<Event>>> =
-    Mutex::new(RefCell::new(None));
+static TIMER0_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIMER1_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIMER2_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
 
 pub mod typestate {
     pub struct NotConfigured;
@@ -62,7 +59,11 @@ pub struct TimerPeripheral<MODE, const IDX: u8> {
 }
 
 impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
-    const fn new() -> Self { Self { _marker: PhantomData } }
+    const fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<const IDX: u8> TimerPeripheral<NotConfigured, IDX> {
@@ -110,16 +111,24 @@ impl<const IDX: u8> TimerPeripheral<Running, IDX> {
         }
     }
 
-    fn fired_flag(&self) -> &AtomicBool { &TIMER_FIRED[IDX as usize] }
+    fn fired_flag(&self) -> &AtomicBool {
+        &TIMER_FIRED[IDX as usize]
+    }
 }
 
 impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
     fn start(&mut self, frequency_us: u32, event: Event) {
         // store the event in the corresponding static slot
         match IDX {
-            0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = Some(event)),
-            1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = Some(event)),
-            2 => cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = Some(event)),
+            0 => {
+                cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = Some(event))
+            }
+            1 => {
+                cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = Some(event))
+            }
+            2 => {
+                cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = Some(event))
+            }
             _ => {}
         }
 
@@ -130,7 +139,9 @@ impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
 
     fn stop(&mut self) {
         // stop timer and clear stored event for this index
-        unsafe { write_volatile(self.reg(TASKS_STOP_OFFSET), 1); }
+        unsafe {
+            write_volatile(self.reg(TASKS_STOP_OFFSET), 1);
+        }
         match IDX {
             0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = None),
             1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = None),
@@ -139,7 +150,9 @@ impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
         }
     }
 
-    fn is_running(&self) -> bool { !self.fired_flag().load(Ordering::Relaxed) }
+    fn is_running(&self) -> bool {
+        !self.fired_flag().load(Ordering::Relaxed)
+    }
 }
 
 // Generate a small board-level `Timer` collection with fields `t0..t2`.
@@ -159,7 +172,7 @@ macro_rules! make_timers {
     }
 }
 
-make_timers!(0,1,2);
+make_timers!(0, 1, 2);
 
 #[inline(always)]
 unsafe fn handle_timer_irq(idx: usize) {
@@ -179,9 +192,21 @@ unsafe fn handle_timer_irq(idx: usize) {
 
     // Trigger registered event if any
     match idx {
-        0 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER0_EVENT.borrow(cs).borrow() { e.trigger(); }),
-        1 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER1_EVENT.borrow(cs).borrow() { e.trigger(); }),
-        2 => cortex_m::interrupt::free(|cs| if let Some(ref e) = *TIMER2_EVENT.borrow(cs).borrow() { e.trigger(); }),
+        0 => cortex_m::interrupt::free(|cs| {
+            if let Some(ref e) = *TIMER0_EVENT.borrow(cs).borrow() {
+                e.trigger();
+            }
+        }),
+        1 => cortex_m::interrupt::free(|cs| {
+            if let Some(ref e) = *TIMER1_EVENT.borrow(cs).borrow() {
+                e.trigger();
+            }
+        }),
+        2 => cortex_m::interrupt::free(|cs| {
+            if let Some(ref e) = *TIMER2_EVENT.borrow(cs).borrow() {
+                e.trigger();
+            }
+        }),
         _ => (),
     }
 

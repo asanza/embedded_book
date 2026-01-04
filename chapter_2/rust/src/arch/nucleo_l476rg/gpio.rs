@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use core::ptr::{read_volatile, write_volatile};
 
 use crate::hal::hal_gpio::Gpio as GpioTrait;
-use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
+use crate::hal::hal_gpio::{ConfigurablePin, Edge, Pull};
 
 // STM32L476 register map (GPIO) for Nucleo board.
 const RCC_BASE: u32 = 0x4002_1000;
@@ -100,7 +100,7 @@ fn exti_common_handler(line: u8) {
 
 use typestate::*;
 
-use crate::hal::utils::{Event};
+use crate::hal::utils::Event;
 use core::cell::RefCell;
 use cortex_m::interrupt::Mutex;
 

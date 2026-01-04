@@ -46,4 +46,3 @@ pub static __INTERRUPTS: [Handler; 32] = [
     timer::default_handler, // 30 Reserved
     timer::default_handler, // 31 Reserved
 ];
-

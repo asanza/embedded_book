@@ -1,8 +1,8 @@
+use crate::hal::utils::Event;
+use core::marker::PhantomData;
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
-use core::marker::PhantomData;
 use cortex_m::asm;
-use crate::hal::utils::Event;
 use cortex_m::interrupt::Mutex;
 // `cortex_m::interrupt` not needed here
 use core::cell::RefCell;
@@ -75,7 +75,11 @@ pub struct TimerPeripheral<MODE, const IDX: u8> {
 }
 
 impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
-    const fn new() -> Self { Self { _marker: PhantomData } }
+    const fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl TimerPeripheral<NotConfigured, 0> {
@@ -179,7 +183,7 @@ impl TimerPeripheral<Running, 0> {
             write_volatile(TIM2_ARR, arr);
             write_volatile(TIM2_CNT, 0);
             write_volatile(TIM2_EGR, TIM_EGR_UG); // load prescaler immediately (sets UIF)
-            write_volatile(TIM2_SR, 0);           // clear the UIF raised by UG so we don't fire instantly
+            write_volatile(TIM2_SR, 0); // clear the UIF raised by UG so we don't fire instantly
 
             write_volatile(TIM2_DIER, TIM_DIER_UIE);
             write_volatile(TIM2_CR1, TIM_CR1_CEN);
@@ -321,7 +325,7 @@ macro_rules! make_timers {
     }
 }
 
-make_timers!(0,1,2);
+make_timers!(0, 1, 2);
 
 #[no_mangle]
 pub extern "C" fn TIM2() {

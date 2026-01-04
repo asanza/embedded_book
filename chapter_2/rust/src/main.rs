@@ -4,40 +4,38 @@
 use cortex_m_rt::entry;
 use panic_halt as _;
 
-mod hal;
 mod arch;
+mod hal;
 
-use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::hal_gpio::{ConfigurablePin, Pull};
-use crate::hal::utils::{Debouncer, DebounceEdge};
+use crate::hal::hal_timer::Timer as TimerTrait;
+use crate::hal::utils::{DebounceEdge, DebouncerOneShot};
 use arch::{GpioImpl, TimerImpl};
-
 
 #[entry]
 fn main() -> ! {
-    const DELAY_US:u32 = 500_000;
+    const DELAY_US: u32 = 500_000;
     // Construct timer collection and acquire timer 0 as a running timer.
     let timers = TimerImpl::new();
     let mut timer = timers.t0.into_running(false);
 
-    // Use t1 as a periodic sampling timer (not one-shot). into_running(false)
-    // makes it periodic for sampling the button every few ms.
-    let mut debounce = timers.t1.into_running(false);
+    // Use t1 as a one-shot timer for debouncing.
+    let one_shot = timers.t1.into_running(true);
 
     // Construct the board GPIO collection once and move individual pins out.
     let gpio = GpioImpl::new();
     let mut led = gpio.p5.into_output(false, true);
 
-    #[cfg(feature="nucleo")]
+    #[cfg(feature = "nucleo")]
     let mut but = gpio.p45.into_input(Pull::Up);
 
-    #[cfg(feature="qemu")]
+    #[cfg(feature = "qemu")]
     let mut but = gpio.p0.into_input(Pull::None);
 
-    // Create an event (static storage) and start the timer to trigger it.
+    // Create an event (static storage) and start the blink timer.
     let ev = crate::make_event!();
     timer.start(DELAY_US, ev.clone()); // 2 Hz toggling
-    let db = crate::make_event!();
+                                       // (no separate sampling event used with one-shot debouncer)
 
     let mut state = false;
     // Read initial button state to track transitions.
@@ -46,11 +44,8 @@ fn main() -> ! {
     let pressed_level = !idle_level;
     // Logical toggle state: false = slow (500ms), true = fast (100ms)
     let mut fast = false;
-    // Start sampling timer at 5 ms (5000 us)
-    debounce.start(5_000, db.clone());
-
-    // Create a Debouncer that samples the `but.read()` closure.
-    let mut deb = Debouncer::new(|| but.read(), 3, pressed_level);
+    // Create a DebouncerOneShot using a closure reader over `but`.
+    let mut deb = DebouncerOneShot::new(|| but.read(), one_shot, pressed_level);
 
     loop {
         if ev.poll() {
@@ -58,22 +53,23 @@ fn main() -> ! {
             led.write(state);
         }
 
-        // Periodic sampling: when the sampling timer fires read the button and
-        // update the signed sample counter towards pressed (+) or released (-).
-        if db.poll() {
-            if let Some(edge) = deb.sample() {
-                match edge {
-                    DebounceEdge::Pressed => {
-                        if but_prev != pressed_level {
-                            fast = !fast;
-                            timer.stop();
-                            if fast { timer.start(100_000, ev.clone()); } else { timer.start(500_000, ev.clone()); }
+        // One-shot debouncer: poll the one-shot event and update state.
+        if let Some(edge) = deb.poll() {
+            match edge {
+                DebounceEdge::Pressed => {
+                    if but_prev != pressed_level {
+                        fast = !fast;
+                        timer.stop();
+                        if fast {
+                            timer.start(50_000, ev.clone());
+                        } else {
+                            timer.start(500_000, ev.clone());
                         }
-                        but_prev = pressed_level;
                     }
-                    DebounceEdge::Released => {
-                        but_prev = !pressed_level;
-                    }
+                    but_prev = pressed_level;
+                }
+                DebounceEdge::Released => {
+                    but_prev = !pressed_level;
                 }
             }
         }

@@ -56,8 +56,8 @@ use cortex_m::interrupt;
 #[cfg(feature = "qemu")]
 use cortex_m_semihosting::hprintln;
 
-use crate::hal::hal_gpio::Gpio as GpioTrait;
 use crate::hal::hal_gpio::ConfigurablePin;
+use crate::hal::hal_gpio::Gpio as GpioTrait;
 use crate::hal::hal_gpio::Pull;
 
 // NRF51 (micro:bit) peripheral addresses used by the C implementation
@@ -82,11 +82,15 @@ use typestate::*;
 
 /// Zero-sized pin representation parameterized by typestate and index.
 pub struct Pin<MODE, const INDEX: u8> {
-    _marker: PhantomData<MODE>
+    _marker: PhantomData<MODE>,
 }
 
 impl<MODE, const INDEX: u8> Pin<MODE, INDEX> {
-    fn new() -> Self { Pin { _marker: PhantomData } }
+    fn new() -> Self {
+        Pin {
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
@@ -97,9 +101,15 @@ impl<const INDEX: u8> Pin<NotConfigured, INDEX> {
     pub fn into_output(self, _open_drain: bool, initial_high: bool) -> Pin<Output, INDEX> {
         let bit = 1u32 << INDEX;
         // DIRSET is write-1-to-set and idempotent; perform the set unconditionally.
-        unsafe { write_volatile(GPIO_DIRSET, bit); }
         unsafe {
-            if initial_high { write_volatile(GPIO_OUTSET, bit); } else { write_volatile(GPIO_OUTCLR, bit); }
+            write_volatile(GPIO_DIRSET, bit);
+        }
+        unsafe {
+            if initial_high {
+                write_volatile(GPIO_OUTSET, bit);
+            } else {
+                write_volatile(GPIO_OUTCLR, bit);
+            }
         }
 
         Pin::new()
@@ -116,7 +126,9 @@ impl<const INDEX: u8> ConfigurablePin for Pin<NotConfigured, INDEX> {
         // nRF51 (micro:bit) does not use the same PUPDR mechanism; pull settings
         // are ignored here. Simply clear the direction bit to make it input.
         let bit = 1u32 << INDEX;
-        unsafe { core::ptr::write_volatile(GPIO_DIRCLR, bit); }
+        unsafe {
+            core::ptr::write_volatile(GPIO_DIRCLR, bit);
+        }
         Pin::new()
     }
 
@@ -131,9 +143,16 @@ impl<const INDEX: u8> Pin<Output, INDEX> {
     pub fn write(&mut self, high: bool) {
         let bit = 1u32 << INDEX;
         unsafe {
-            if high { write_volatile(GPIO_OUTSET, bit); } else { write_volatile(GPIO_OUTCLR, bit); }
+            if high {
+                write_volatile(GPIO_OUTSET, bit);
+            } else {
+                write_volatile(GPIO_OUTCLR, bit);
+            }
         }
-        #[cfg(feature = "qemu")] { let _ = hprintln!("GPIO pin {} = {}", INDEX, if high { 1 } else { 0 }); }
+        #[cfg(feature = "qemu")]
+        {
+            let _ = hprintln!("GPIO pin {} = {}", INDEX, if high { 1 } else { 0 });
+        }
     }
 
     /// Read the pin level from the input register (works for output pins too).
@@ -152,13 +171,20 @@ impl<const INDEX: u8> Pin<Input, INDEX> {
 }
 
 impl<const INDEX: u8> GpioTrait for Pin<Input, INDEX> {
-    fn write(&mut self, _high: bool) { /* not applicable for input */ }
-    fn read(&mut self) -> bool { self.read() }
+    fn write(&mut self, _high: bool) { /* not applicable for input */
+    }
+    fn read(&mut self) -> bool {
+        self.read()
+    }
 }
 
 impl<const INDEX: u8> GpioTrait for Pin<Output, INDEX> {
-    fn write(&mut self, high: bool) { self.write(high); }
-    fn read(&mut self) -> bool { self.read() }
+    fn write(&mut self, high: bool) {
+        self.write(high);
+    }
+    fn read(&mut self) -> bool {
+        self.read()
+    }
 }
 
 // Macro-driven generation of the micro:bit pin collection and aliases.
@@ -183,5 +209,4 @@ macro_rules! make_pins {
     }
 }
 
-make_pins!(0,1,2,3,4,5,6,7,8,9);
-
+make_pins!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
