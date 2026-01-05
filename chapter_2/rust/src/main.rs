@@ -7,7 +7,7 @@ use panic_halt as _;
 mod arch;
 mod hal;
 
-use crate::hal::hal_gpio::{ConfigurablePin, Pull};
+use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::{DebounceEdge, DebouncerOneShot};
 use arch::{GpioImpl, TimerImpl};
@@ -34,8 +34,11 @@ fn main() -> ! {
 
     // Create an event (static storage) and start the blink timer.
     let ev = crate::make_event!();
-    timer.start(DELAY_US, ev.clone()); // 2 Hz toggling
-                                       // (no separate sampling event used with one-shot debouncer)
+    timer.start(DELAY_US, ev.clone());
+
+    // lets create an event for the gpio and bind the interrupt to it.
+    let gev = crate::make_event!();
+    but.enable_interrupt(crate::Edge::Rising, gev);
 
     let mut state = false;
     // Read initial button state to compute pressed polarity.
