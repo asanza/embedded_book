@@ -3,6 +3,7 @@
 #define HAL_GPIO_H
 
 #include <stdbool.h>
+#include <hal_event.h>
 
 /**
  * @file hal_gpio.h
@@ -18,6 +19,12 @@ enum hal_gpio_pull {
     HAL_GPIO_PULLUP,
     HAL_GPIO_PULLDOWN,
     HAL_GPIO_PULLNONE,
+};
+
+enum hal_gpio_edge {
+    HAL_GPIO_EDGE_RISING,
+    HAL_GPIO_EDGE_FALLING,
+    HAL_GPIO_EDGE_BOTH,
 };
 
 /**
@@ -67,6 +74,15 @@ int hal_gpio_init_in(int pin, enum hal_gpio_pull pull);
  *         Implementations may return a negative value to indicate an error.
  */
 int hal_gpio_read(int pin);
+
+/**
+ * @brief Enable the pin interrupt on a given edge. It will set the
+ *        corresponding event flag when done.
+ *
+ * @param pin
+ * @param e
+ */
+void hal_gpio_enable_interrupt(int pin, enum hal_gpio_edge e, hal_event_mask_t evt);
 
 #endif // HAL_GPIO_H
 
