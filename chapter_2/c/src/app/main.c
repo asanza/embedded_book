@@ -34,7 +34,7 @@ int main(void) {
             bool led_state = !hal_gpio_read(LED_GPIO);
             hal_gpio_write(LED_GPIO, led_state);
         } else if(evt & GPIO_EVT && !running ) {
-            hal_timer_start(DEBOUNCE_TIMER, 10000);
+            hal_timer_start(DEBOUNCE_TIMER, 20000);
             running = true;
         } else if(evt & DEBNC_EVT && running) {
             hal_timer_stop(BLINK_TIMER);
