@@ -9,7 +9,7 @@ mod hal;
 
 use crate::hal::hal_gpio::{ConfigurablePin, Pull};
 use crate::hal::hal_timer::Timer as TimerTrait;
-use crate::hal::utils::{DebounceEdge, DebouncerOneShot};
+use crate::hal::utils::{DebounceEdge, Debouncer};
 use arch::{GpioImpl, TimerImpl};
 
 #[entry]
@@ -41,9 +41,9 @@ fn main() -> ! {
     let mut state = false;
     // Logical toggle state: false = slow (500ms), true = fast (100ms)
     let mut fast = false;
-    // Create a DebouncerOneShot that owns the input pin and the one-shot timer.
+    // Create a Debouncer that owns the input pin and the one-shot timer.
     // The constructor auto-detects the pressed polarity and uses the given timeout.
-    let mut deb = DebouncerOneShot::new(but, one_shot, 20_000);
+    let mut deb = Debouncer::new(but, one_shot, 20_000);
 
     loop {
         if ev.poll() {

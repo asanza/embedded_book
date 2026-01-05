@@ -47,54 +47,9 @@ pub enum DebounceEdge {
     Released,
 }
 
-/// Simple majority counter debouncer for sampling-based use.
-pub struct Debouncer<P> {
-    pin: P,
-    counter: i8,
-    threshold: i8,
-    pressed_level: bool,
-}
-
-impl<P> Debouncer<P>
-where
-    P: FnMut() -> bool,
-{
-    pub fn new(pin: P, threshold: i8, pressed_level: bool) -> Self {
-        Debouncer {
-            pin,
-            counter: 0,
-            threshold,
-            pressed_level,
-        }
-    }
-
-    pub fn sample(&mut self) -> Option<DebounceEdge> {
-        let s = (self.pin)();
-        if s == self.pressed_level {
-            if self.counter < self.threshold {
-                self.counter += 1;
-            }
-        } else {
-            if self.counter > -self.threshold {
-                self.counter -= 1;
-            }
-        }
-
-        if self.counter >= self.threshold {
-            self.counter = self.threshold;
-            return Some(DebounceEdge::Pressed);
-        }
-        if self.counter <= -self.threshold {
-            self.counter = -self.threshold;
-            return Some(DebounceEdge::Released);
-        }
-        None
-    }
-}
-
 /// One-shot timer-backed debouncer with KISS API.
-/// Call `DebouncerOneShot::new(pin, timer, debounce_us)` and then `poll()`.
-pub struct DebouncerOneShot<T, P>
+/// Call `Debouncer::new(pin, timer, debounce_us)` and then `poll()`.
+pub struct Debouncer<T, P>
 where
     T: crate::hal::hal_timer::Timer,
     P: crate::hal::hal_gpio::InputInterrupt + crate::hal::hal_gpio::Gpio,
@@ -102,13 +57,14 @@ where
     pin: P,
     timer: T,
     debounce_us: u32,
-    event: Event,
+    pin_event: Event,
+    tim_event: Event,
     armed: bool,
     last_state: bool,
     pressed_level: bool,
 }
 
-impl<T, P> DebouncerOneShot<T, P>
+impl<T, P> Debouncer<T, P>
 where
     T: crate::hal::hal_timer::Timer,
     P: crate::hal::hal_gpio::InputInterrupt + crate::hal::hal_gpio::Gpio,
@@ -132,13 +88,15 @@ where
 
         let cur = pin.read();
         let ev = crate::make_event!();
+        let tev = crate::make_event!();
         pin.enable_interrupt(crate::hal::hal_gpio::Edge::Both, ev.clone());
 
-        DebouncerOneShot {
+        Debouncer {
             pin,
             timer,
             debounce_us,
-            event: ev,
+            pin_event: ev,
+            tim_event: tev,
             armed: false,
             last_state: cur,
             pressed_level,
@@ -149,16 +107,16 @@ where
     /// return a stable DebounceEdge when the one-shot timer fires.
     pub fn poll(&mut self) -> Option<DebounceEdge> {
         // If ISR set the event, arm the timer if needed
-        if self.event.poll() {
+        if self.pin_event.poll() {
             let cur = self.pin.read();
             if cur != self.last_state && !self.armed {
-                self.timer.start(self.debounce_us, self.event.clone());
+                self.timer.start(self.debounce_us, self.tim_event.clone());
                 self.armed = true;
             }
         }
 
         // If timer fired, evaluate stable state.
-        if self.armed && self.event.poll() {
+        if self.armed && self.tim_event.poll() {
             self.armed = false;
             let s = self.pin.read();
             if s == self.pressed_level && self.last_state != self.pressed_level {

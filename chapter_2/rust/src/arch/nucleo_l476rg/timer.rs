@@ -290,6 +290,7 @@ impl TimerPeripheral<Running, 1> {
 
 impl TimerPeripheral<Running, 2> {
     fn arm_delay(&self, us: u32) {
+        assert!(us <= 65535);
         unsafe {
             TIM4_FIRED.store(false, Ordering::Release);
 
