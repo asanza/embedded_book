@@ -268,7 +268,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
 
     pub fn enable_interrupt<E>(&mut self, edge: Edge, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy,
+        E: crate::hal::utils::Trigger,
     {
         let ev_mask = event.mask();
         let pin = PIN;
@@ -355,7 +355,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
 impl<const PIN: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, PIN> {
     fn enable_interrupt<E>(&mut self, edge: crate::hal::hal_gpio::Edge, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy,
+        E: crate::hal::utils::Trigger,
     {
         Pin::<Input, PIN>::enable_interrupt(self, edge, event);
     }

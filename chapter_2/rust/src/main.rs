@@ -9,7 +9,7 @@ mod hal;
 
 use crate::hal::hal_gpio::{ConfigurablePin, Pull};
 use crate::hal::hal_timer::Timer as TimerTrait;
-use crate::hal::utils::{Event, poll_all};
+use crate::hal::utils::{poll_all, Event, Trigger};
 use arch::{GpioImpl, TimerImpl};
 
 #[entry]
@@ -32,20 +32,20 @@ fn main() -> ! {
     #[cfg(feature = "qemu")]
     let but = gpio.p0.into_input(Pull::None);
 
-    // Use const-generic events (ZST) mapped to bits 0..n.
-    type BlinkEvt = Event<0>;
-    type DebncEvt = Event<1>;
-    type GpioEvt = Event<2>;
-
-    let blink_evt = BlinkEvt::new();
-    let debnc_evt = DebncEvt::new();
-    let gpio_evt = GpioEvt::new();
+    // Create events via a value-level factory (static wiring but ergonomic)
+    let factory = crate::hal::utils::EventFactory::new();
+    let (blink_evt, factory) = factory.create::<0>().expect("alloc blink");
+    let (debnc_evt, factory) = factory.create::<1>().expect("alloc debnc");
+    let (gpio_evt, _factory) = factory.create::<2>().expect("alloc gpio");
 
     // Initialize global events storage (if needed)
     crate::hal::utils::signal_mask(0); // no-op, ensures module linked
 
-    // Start the blink timer
-    blink_timer.start(DELAY_US, blink_evt);
+    // Associate event and start the blink timer
+    blink_timer.enable_interrupt(blink_evt);
+    blink_timer.start(DELAY_US);
+
+    debounce_timer.enable_interrupt(debnc_evt);
 
     // Configure input interrupt to set bit 2 (GPIO event)
     #[cfg(feature = "nucleo")]
@@ -57,19 +57,19 @@ fn main() -> ! {
     loop {
         let evt = poll_all();
 
-        if evt & BlinkEvt::mask() != 0 {
+        if evt & Event::<0>::mask() != 0 {
             let state = !led.read();
             led.write(state);
-        } else if evt & GpioEvt::mask() != 0 && !running {
-            debounce_timer.start(20_000, debnc_evt);
+        } else if evt & Event::<2>::mask() != 0 && !running {
+            debounce_timer.start(20_000);
             running = true;
-        } else if evt & DebncEvt::mask() != 0 && running {
+        } else if evt & Event::<1>::mask() != 0 && running {
             // Toggle blink speed immediately on GPIO event (debounce omitted)
             blink_timer.stop();
             if !fast {
-                blink_timer.start(50_000, blink_evt);
+                blink_timer.start(50_000);
             } else {
-                blink_timer.start(DELAY_US, blink_evt);
+                blink_timer.start(DELAY_US);
             }
             fast = !fast;
             running = false;

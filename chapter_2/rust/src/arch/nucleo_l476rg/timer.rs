@@ -252,6 +252,9 @@ impl TimerPeripheral<Running, 2> {
             write_volatile(TIM2_SR, 0); // clear the UIF raised by UG so we don't fire instantly
 
             write_volatile(TIM2_DIER, TIM_DIER_UIE);
+            cortex_m::asm::dsb();
+            cortex_m::asm::isb();
+            write_volatile(TIM2_DIER, TIM_DIER_UIE);
             write_volatile(TIM2_CR1, TIM_CR1_CEN);
         }
     }
@@ -278,6 +281,9 @@ impl TimerPeripheral<Running, 3> {
             write_volatile(TIM3_EGR, TIM_EGR_UG);
             write_volatile(TIM3_SR, 0);
 
+            write_volatile(TIM3_DIER, TIM_DIER_UIE);
+            cortex_m::asm::dsb();
+            cortex_m::asm::isb();
             write_volatile(TIM3_DIER, TIM_DIER_UIE);
             write_volatile(TIM3_CR1, TIM_CR1_CEN);
         }
@@ -307,6 +313,9 @@ impl TimerPeripheral<Running, 4> {
             write_volatile(TIM4_SR, 0);
 
             write_volatile(TIM4_DIER, TIM_DIER_UIE);
+            cortex_m::asm::dsb();
+            cortex_m::asm::isb();
+            write_volatile(TIM4_DIER, TIM_DIER_UIE);
             write_volatile(TIM4_CR1, TIM_CR1_CEN);
         }
     }
@@ -317,12 +326,15 @@ impl TimerPeripheral<Running, 4> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 2> {
-    fn start<E>(&mut self, us: u32, event: E)
+    fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy,
+        E: crate::hal::utils::OwnableTrigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM2_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
+    }
+
+    fn start(&mut self, us: u32) {
         // configure hardware timer to desired frequency (omitted)
         self.arm_delay(us);
     }
@@ -332,7 +344,8 @@ impl TimerTrait for TimerPeripheral<Running, 2> {
             write_volatile(TIM2_CR1, read_volatile(TIM2_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM2_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM2_EVENT_MASK.borrow(cs).borrow_mut() = None);
+        // Keep the registered event mask so start() can re-enable interrupts
+        // later if needed. Do not clear TIM2_EVENT_MASK here.
     }
 
     fn is_running(&self) -> bool {
@@ -342,12 +355,15 @@ impl TimerTrait for TimerPeripheral<Running, 2> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 3> {
-    fn start<E>(&mut self, us: u32, event: E)
+    fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy,
+        E: crate::hal::utils::OwnableTrigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM3_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
+    }
+
+    fn start(&mut self, us: u32) {
         self.arm_delay(us);
     }
 
@@ -356,7 +372,8 @@ impl TimerTrait for TimerPeripheral<Running, 3> {
             write_volatile(TIM3_CR1, read_volatile(TIM3_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM3_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM3_EVENT_MASK.borrow(cs).borrow_mut() = None);
+        // Keep the registered event mask so start() can re-enable interrupts
+        // later if needed. Do not clear TIM3_EVENT_MASK here.
     }
 
     fn is_running(&self) -> bool {
@@ -365,12 +382,15 @@ impl TimerTrait for TimerPeripheral<Running, 3> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 4> {
-    fn start<E>(&mut self, us: u32, event: E)
+    fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy,
+        E: crate::hal::utils::OwnableTrigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM4_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
+    }
+
+    fn start(&mut self, us: u32) {
         self.arm_delay(us);
     }
 
@@ -379,7 +399,8 @@ impl TimerTrait for TimerPeripheral<Running, 4> {
             write_volatile(TIM4_CR1, read_volatile(TIM4_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM4_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM4_EVENT_MASK.borrow(cs).borrow_mut() = None);
+        // Keep the registered event mask so start() can re-enable interrupts
+        // later if needed. Do not clear TIM4_EVENT_MASK here.
     }
 
     fn is_running(&self) -> bool {

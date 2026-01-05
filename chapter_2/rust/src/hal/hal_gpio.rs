@@ -37,7 +37,7 @@ pub trait ConfigurablePin {
 pub trait InputInterrupt {
     fn enable_interrupt<E>(&mut self, edge: Edge, event: E)
     where
-        E: crate::hal::utils::Trigger + Copy;
+        E: crate::hal::utils::Trigger;
 
     fn disable_interrupt(&mut self);
 }
