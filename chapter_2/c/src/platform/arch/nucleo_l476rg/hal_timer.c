@@ -7,6 +7,7 @@
 
 #define RCC_BASE     0x40021000UL
 #define RCC_APB1ENR1 (*(volatile uint32_t *)(RCC_BASE + 0x58))
+#define RCC_APB1RSTR (*(volatile uint32_t *)(RCC_BASE + 0x38))
 
 #define TIM2_BASE 0x40000000UL
 #define TIM2_CR1  (*(volatile uint32_t *)(TIM2_BASE + 0x00))
@@ -66,7 +67,9 @@ static inline void __WFI(void) { __asm volatile("wfi" ::: "memory"); }
 static void tim_config_period_us(int timer_instance, uint32_t period_us) {
     const uint32_t prescaler = (TIMER_CLOCK_HZ / 1000000UL) - 1UL;
     volatile uint32_t *CR1, *DIER, *SR, *PSC, *ARR, *CNT, *EGR;
-    if (timer_instance == 0) {
+    /* Map public instances 2..4 to internal indices 0..2 */
+    int idx = timer_instance - 2;
+    if (idx == 0) {
         CR1 = &TIM2_CR1;
         DIER = &TIM2_DIER;
         SR = &TIM2_SR;
@@ -74,7 +77,7 @@ static void tim_config_period_us(int timer_instance, uint32_t period_us) {
         ARR = &TIM2_ARR;
         CNT = &TIM2_CNT;
         EGR = &TIM2_EGR;
-    } else if (timer_instance == 1) {
+    } else if (idx == 1) {
         CR1 = &TIM3_CR1;
         DIER = &TIM3_DIER;
         SR = &TIM3_SR;
@@ -92,13 +95,15 @@ static void tim_config_period_us(int timer_instance, uint32_t period_us) {
         EGR = &TIM4_EGR;
     }
 
-    *CR1 = 0;         /* stop timer */
-    *DIER = 0;        /* disable interrupts while configuring */
-    *SR = 0;          /* clear pending flags */
+    /* Stop timer and disable interrupts while configuring */
+    *CR1 = 0;
+    *DIER = 0;
+    *SR = 0; /* clear pending flags */
     *PSC = prescaler; /* prescale to 1 MHz */
     *ARR = (period_us == 0) ? 1UL : period_us; /* avoid zero ARR */
     *CNT = 0;
-    *EGR = TIM_EGR_UG; /* load prescaler immediately */
+    *EGR = TIM_EGR_UG; /* load prescaler immediately (may set UIF) */
+    *SR &= ~TIM_SR_UIF; /* clear the UIF set by UG */
 }
 
 void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event) {
@@ -114,7 +119,11 @@ void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event) 
 
     /* Enable TIMx clock on APB1. TIM2EN bit = 0, TIM3EN = 1, TIM4EN = 2 */
     RCC_APB1ENR1 |= (1UL << (uint32_t)idx);
-    (void)RCC_APB1ENR1;
+    (void)RCC_APB1ENR1; /* readback as barrier */
+
+    /* Reset TIMx to a known state, then release reset (APB1RSTR). */
+    RCC_APB1RSTR |= (1UL << (uint32_t)idx);
+    RCC_APB1RSTR &= ~(1UL << (uint32_t)idx);
 
     /* Configure timer with current default period (not started) */
     tim_config_period_us(timer_instance, (s_timer_instances[idx].period_us == 0)

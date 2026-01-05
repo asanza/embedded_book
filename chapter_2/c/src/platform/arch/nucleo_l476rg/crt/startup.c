@@ -51,11 +51,11 @@ void TAMP_STAMP_Handler(void) ALIAS(Default_Handler);
 void RTC_WKUP_Handler(void) ALIAS(Default_Handler);
 void FLASH_Handler(void) ALIAS(Default_Handler);
 void RCC_Handler(void) ALIAS(Default_Handler);
-void EXTI0_Handler(void) ALIAS(Default_Handler);
-void EXTI1_Handler(void) ALIAS(Default_Handler);
-void EXTI2_Handler(void) ALIAS(Default_Handler);
-void EXTI3_Handler(void) ALIAS(Default_Handler);
-void EXTI4_Handler(void) ALIAS(Default_Handler);
+extern void EXTI0_IRQHandler(void);
+extern void EXTI1_IRQHandler(void);
+extern void EXTI2_IRQHandler(void);
+extern void EXTI3_IRQHandler(void);
+extern void EXTI4_IRQHandler(void);
 void DMA1_CH1_Handler(void) ALIAS(Default_Handler);
 void DMA1_CH2_Handler(void) ALIAS(Default_Handler);
 void DMA1_CH3_Handler(void) ALIAS(Default_Handler);
@@ -68,7 +68,7 @@ void CAN1_TX_Handler(void) ALIAS(Default_Handler);
 void CAN1_RX0_Handler(void) ALIAS(Default_Handler);
 void CAN1_RX1_Handler(void) ALIAS(Default_Handler);
 void CAN1_SCE_Handler(void) ALIAS(Default_Handler);
-void EXTI9_5_Handler(void) ALIAS(Default_Handler);
+extern void EXTI9_5_IRQHandler(void);
 void TIM1_BRK_TIM15_Handler(void) ALIAS(Default_Handler);
 void TIM1_UP_TIM16_Handler(void) ALIAS(Default_Handler);
 void TIM1_TRG_COM_TIM17_Handler(void) ALIAS(Default_Handler);
@@ -82,7 +82,7 @@ void SPI2_IRQHandler(void) ALIAS(Default_Handler);
 void USART1_IRQHandler(void) ALIAS(Default_Handler);
 void USART2_IRQHandler(void) ALIAS(Default_Handler);
 void USART3_IRQHandler(void) ALIAS(Default_Handler);
-void EXTI15_10_IRQHandler(void) ALIAS(Default_Handler);
+extern void EXTI15_10_IRQHandler(void);
 void RTC_Alarm_IRQHandler(void) ALIAS(Default_Handler);
 void DFSDM3_IRQHandler(void) ALIAS(Default_Handler);
 void TIM8_BRK_IRQHandler(void) ALIAS(Default_Handler);
@@ -123,8 +123,8 @@ void RNG_IRQHandler(void) ALIAS(Default_Handler);
 void FPU_IRQHandler(void) ALIAS(Default_Handler);
 
 extern void TIM2_IRQHandler(void);
-void TIM3_IRQHandler(void) ALIAS(Default_Handler);
-void TIM4_IRQHandler(void) ALIAS(Default_Handler);
+extern void TIM3_IRQHandler(void);
+extern void TIM4_IRQHandler(void);
 void TIM5_IRQHandler(void) ALIAS(Default_Handler);
 void TIM7_IRQHandler(void) ALIAS(Default_Handler);
 
@@ -155,11 +155,11 @@ __attribute__((
     RTC_WKUP_Handler,           // 19
     FLASH_Handler,              // 20
     RCC_Handler,                // 21
-    EXTI0_Handler,              // 22
-    EXTI1_Handler,              // 23
-    EXTI2_Handler,              // 24
-    EXTI3_Handler,              // 25
-    EXTI4_Handler,              // 26
+    EXTI0_IRQHandler,              // 22
+    EXTI1_IRQHandler,              // 23
+    EXTI2_IRQHandler,              // 24
+    EXTI3_IRQHandler,              // 25
+    EXTI4_IRQHandler,              // 26
     DMA1_CH1_Handler,           // 27
     DMA1_CH2_Handler,           // 28
     DMA1_CH3_Handler,           // 29
@@ -172,7 +172,7 @@ __attribute__((
     CAN1_RX0_Handler,           // 36
     CAN1_RX1_Handler,           // 37
     CAN1_SCE_Handler,           // 38
-    EXTI9_5_Handler,            // 39
+    EXTI9_5_IRQHandler,            // 39
     TIM1_BRK_TIM15_Handler,     // 40
     TIM1_UP_TIM16_Handler,      // 41
     TIM1_TRG_COM_TIM17_Handler, // 42

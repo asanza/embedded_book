@@ -261,30 +261,30 @@ void hal_gpio_disable_interrupt(int pin) {
  * symbols are frequently referenced by the vector table; provide the same
  * names as used elsewhere in the project to ensure linkage.
  */
-void EXTI0(void) {
+void EXTI0_IRQHandler(void) {
     hal_gpio_exti_handler(0);
 }
-void EXTI1(void) {
+void EXTI1_IRQHandler(void) {
     hal_gpio_exti_handler(1);
 }
-void EXTI2(void) {
+void EXTI2_IRQHandler(void) {
     hal_gpio_exti_handler(2);
 }
-void EXTI3(void) {
+void EXTI3_IRQHandler(void) {
     hal_gpio_exti_handler(3);
 }
-void EXTI4(void) {
+void EXTI4_IRQHandler(void) {
     hal_gpio_exti_handler(4);
 }
 
-void EXTI9_5(void) {
+void EXTI9_5_IRQHandler(void) {
     /* lines 5..9 */
     for (unsigned l = 5; l <= 9; ++l) {
         hal_gpio_exti_handler(l);
     }
 }
 
-void EXTI15_10(void) {
+void EXTI15_10_IRQHandler(void) {
     /* lines 10..15 */
     for (unsigned l = 10; l <= 15; ++l) {
         hal_gpio_exti_handler(l);
