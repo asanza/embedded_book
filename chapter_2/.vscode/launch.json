@@ -15,9 +15,19 @@
       "machine": "microbit"
     },
     {
-      "name": "NUCLEO DEBUG",
+      "name": "Chapter 2 RUST DEBUG",
       "cwd": "${workspaceFolder}",
       "executable": "${workspaceFolder}/rust/target/thumbv7em-none-eabihf/debug/chapter1-hal-demo",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "configFiles": ["board/st_nucleo_l4.cfg"]
+    },
+    {
+      "name": "Chapter 2 C NUCLEO",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/c/build/src/app/app-nucleo",
       "request": "launch",
       "type": "cortex-debug",
       "runToEntryPoint": "main",

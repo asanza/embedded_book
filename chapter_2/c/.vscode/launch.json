@@ -17,7 +17,7 @@
     {
       "name": "NUCLEO DEBUG",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/src/app/app-nucleo",
+      "executable": "${workspaceFolder}/chapter_2/c/build/src/app/app-nucleo",
       "request": "launch",
       "type": "cortex-debug",
       "runToEntryPoint": "main",

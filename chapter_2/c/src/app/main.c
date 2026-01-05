@@ -7,12 +7,6 @@
 #define LED_GPIO       (5)
 #define TIMER_INSTANCE (2)
 
-static void timer_callback(void* args)
-{
-    bool* fired = (bool*) args;
-    *fired = true;
-}
-
 int main(void) {
 
     hal_event_init();

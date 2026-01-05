@@ -6,6 +6,7 @@ add_library(arch_nucleo STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/crt/startup.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hal_gpio.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hal_timer.c
+    ${HAL_COMMON_SOURCES}
 )
 
 # Publicly depend on the HAL headers interface which this implementation
