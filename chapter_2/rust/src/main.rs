@@ -9,7 +9,7 @@ mod hal;
 
 use crate::hal::hal_gpio::{ConfigurablePin, Pull};
 use crate::hal::hal_timer::Timer as TimerTrait;
-use crate::hal::utils::{poll_all, Event, Trigger};
+use crate::hal::utils::{poll_all, Event};
 use arch::{GpioImpl, TimerImpl};
 
 #[entry]
@@ -35,8 +35,8 @@ fn main() -> ! {
     // Create events via a value-level factory (static wiring but ergonomic)
     let factory = crate::hal::utils::EventFactory::new();
     let (blink_evt, factory) = factory.create::<0>().expect("alloc blink");
-    let (debnc_evt, factory) = factory.create::<1>().expect("alloc debnc");
-    let (gpio_evt, _factory) = factory.create::<2>().expect("alloc gpio");
+    let (gpio_evt, _factory) = factory.create::<1>().expect("alloc gpio");
+    let (debnc_evt, factory) = factory.create::<2>().expect("alloc debnc");
 
     // Initialize global events storage (if needed)
     crate::hal::utils::signal_mask(0); // no-op, ensures module linked
@@ -60,10 +60,10 @@ fn main() -> ! {
         if evt & Event::<0>::mask() != 0 {
             let state = !led.read();
             led.write(state);
-        } else if evt & Event::<2>::mask() != 0 && !running {
+        } else if evt & Event::<1>::mask() != 0 && !running {
             debounce_timer.start(20_000);
             running = true;
-        } else if evt & Event::<1>::mask() != 0 && running {
+        } else if evt & Event::<2>::mask() != 0 && running {
             // Toggle blink speed immediately on GPIO event (debounce omitted)
             blink_timer.stop();
             if !fast {
