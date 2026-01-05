@@ -25,14 +25,13 @@ int main(void) {
     hal_gpio_init_in(45, HAL_GPIO_PULLUP);
     hal_gpio_enable_interrupt(45, HAL_GPIO_EDGE_FALLING, GPIO_EVT);
 
-    bool led_state = true;
     bool running = false;
     bool fast = false;
     while (1) {
         hal_event_mask_t evt = hal_event_poll();
         /* wait for timer event */
         if ( evt & BLINK_EVT ) {
-            led_state = !led_state;
+            bool led_state = !hal_gpio_read(LED_GPIO);
             hal_gpio_write(LED_GPIO, led_state);
         } else if(evt & GPIO_EVT && !running ) {
             hal_timer_start(DEBOUNCE_TIMER, 10000);
