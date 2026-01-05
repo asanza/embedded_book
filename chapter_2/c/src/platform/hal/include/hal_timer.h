@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <hal_event.h>
 
 /**
  * @file hal_timer.h
@@ -13,16 +14,6 @@
  * platform-specific and should interpret the integer `timer instance`
  * identifier according to the platform's timer numbering scheme.
  */
-
-/**
- * @brief Timer callback type.
- *
- * Called from the timer context (interrupt or dedicated thread, platform
- * specific) when the timer fires. The provided `arg` pointer is the same
- * value passed to `hal_timer_start` and may be NULL.
- */
-typedef void (*hal_timer_cb)(void* arg);
-
 
 /**
  * @brief Initialize a hardware timer instance.
@@ -42,20 +33,7 @@ typedef void (*hal_timer_cb)(void* arg);
  * @param period_us Initial timer period, in microseconds.
  * @param one_shoot true for one-shot mode, false for periodic mode.
  */
-void hal_timer_init(int timer_instance, uint32_t period_us, bool one_shoot);
-
-
-/**
- * @brief Change the timer period.
- *
- * Update the timer period while the timer is stopped or running. Behavior
- * when changing the period while the timer is active is platform-dependent:
- * implementations may apply the new period immediately or on the next cycle.
- *
- * @param timer_instance Platform-specific timer identifier.
- * @param period_us New period in microseconds.
- */
-void hal_timer_set_period(int timer_instance, uint32_t period_us);
+void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event);
 
 
 /**
@@ -70,7 +48,7 @@ void hal_timer_set_period(int timer_instance, uint32_t period_us);
  * @param cb Callback to invoke on timer expiry (may be NULL).
  * @param arg Opaque pointer passed to the callback (may be NULL).
  */
-void hal_timer_start(int timer_instance, hal_timer_cb cb, void* arg);
+void hal_timer_start(int instance, uint32_t period_us);
 
 
 /**

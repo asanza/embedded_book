@@ -48,12 +48,18 @@
 /* Assume default 4 MHz MSI unless startup changes it. Adjust if needed. */
 #define TIMER_CLOCK_HZ 4000000UL
 
-/* Support 3 timer instances: 0=TIM2,1=TIM3,2=TIM4 */
-static volatile uint32_t s_waiting[3] = {0, 0, 0};
-static bool s_one_shot[3] = {false, false, false};
-static uint32_t s_period_us_arr[3] = {1000U, 1000U, 1000U};
-static hal_timer_cb s_cb_arr[3] = {NULL, NULL, NULL};
-static void *s_cb_arg_arr[3] = {NULL, NULL, NULL};
+struct priv_timer {
+    volatile uint32_t waiting;
+    bool one_shoot;
+    uint32_t period_us;
+    hal_event_mask_t event;
+};
+
+static struct priv_timer s_timer_instances[3] = {
+    { .waiting = 0, .one_shoot = false, .period_us = 1000U, .event = 0 },
+    { .waiting = 0, .one_shoot = false, .period_us = 1000U, .event = 0 },
+    { .waiting = 0, .one_shoot = false, .period_us = 1000U, .event = 0 },
+};
 
 static inline void __WFI(void) { __asm volatile("wfi" ::: "memory"); }
 
@@ -95,51 +101,50 @@ static void tim_config_period_us(int timer_instance, uint32_t period_us) {
     *EGR = TIM_EGR_UG; /* load prescaler immediately */
 }
 
-void hal_timer_init(int timer_instance, uint32_t period_us, bool one_shoot) {
-    assert(timer_instance >= 0 && timer_instance <= 2);
+void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event) {
+    /* Public instances are 2..4 mapping to TIM2..TIM4 */
+    assert(timer_instance >= 2 && timer_instance <= 4);
+    int idx = timer_instance - 2;
 
-    s_one_shot[timer_instance] = one_shoot;
-    s_waiting[timer_instance] = 0;
-    s_period_us_arr[timer_instance] = period_us;
-    s_cb_arr[timer_instance] = NULL;
-    s_cb_arg_arr[timer_instance] = NULL;
+    s_timer_instances[idx].one_shoot = one_shoot;
+    s_timer_instances[idx].waiting = 0;
+    /* leave period until start, but configure to default now */
+    s_timer_instances[idx].period_us = s_timer_instances[idx].period_us;
+    s_timer_instances[idx].event = event;
 
     /* Enable TIMx clock on APB1. TIM2EN bit = 0, TIM3EN = 1, TIM4EN = 2 */
-    RCC_APB1ENR1 |= (1UL << (uint32_t)timer_instance);
+    RCC_APB1ENR1 |= (1UL << (uint32_t)idx);
     (void)RCC_APB1ENR1;
 
-    tim_config_period_us(timer_instance, (s_period_us_arr[timer_instance] == 0)
+    /* Configure timer with current default period (not started) */
+    tim_config_period_us(timer_instance, (s_timer_instances[idx].period_us == 0)
                                              ? 1U
-                                             : s_period_us_arr[timer_instance]);
+                                             : s_timer_instances[idx].period_us);
 
     /* Enable timer IRQ in NVIC for the corresponding timer. */
-    if (timer_instance == 0)
+    if (timer_instance == 2)
         NVIC_ISER0 |= TIM2_IRQ_BIT;
-    else if (timer_instance == 1)
+    else if (timer_instance == 3)
         NVIC_ISER0 |= TIM3_IRQ_BIT;
     else
         NVIC_ISER0 |= TIM4_IRQ_BIT;
 }
 
-void hal_timer_set_period(int timer_instance, uint32_t period_us) {
-    assert(timer_instance >= 0 && timer_instance <= 2);
-    s_period_us_arr[timer_instance] = period_us;
-    tim_config_period_us(timer_instance, (s_period_us_arr[timer_instance] == 0)
+void hal_timer_start(int timer_instance, uint32_t period_us) {
+    assert(timer_instance >= 2 && timer_instance <= 4);
+    int idx = timer_instance - 2;
+
+    s_timer_instances[idx].period_us = period_us;
+    tim_config_period_us(timer_instance, (s_timer_instances[idx].period_us == 0)
                                              ? 1U
-                                             : s_period_us_arr[timer_instance]);
-}
+                                             : s_timer_instances[idx].period_us);
 
-void hal_timer_start(int timer_instance, hal_timer_cb cb, void *arg) {
-    assert(timer_instance >= 0 && timer_instance <= 2);
-    s_cb_arr[timer_instance] = cb;
-    s_cb_arg_arr[timer_instance] = arg;
+    s_timer_instances[idx].waiting = 1;
 
-    s_waiting[timer_instance] = 1;
-
-    if (timer_instance == 0) {
+    if (timer_instance == 2) {
         TIM2_DIER = TIM_DIER_UIE;
         TIM2_CR1 = TIM_CR1_CEN;
-    } else if (timer_instance == 1) {
+    } else if (timer_instance == 3) {
         TIM3_DIER = TIM_DIER_UIE;
         TIM3_CR1 = TIM_CR1_CEN;
     } else {
@@ -149,19 +154,19 @@ void hal_timer_start(int timer_instance, hal_timer_cb cb, void *arg) {
 }
 
 void hal_timer_stop(int timer_instance) {
-    assert(timer_instance >= 0 && timer_instance <= 2);
-    if (timer_instance == 0) {
+    assert(timer_instance >= 2 && timer_instance <= 4);
+    int idx = timer_instance - 2;
+    if (timer_instance == 2) {
         TIM2_CR1 &= ~TIM_CR1_CEN;
         TIM2_DIER = 0;
-    } else if (timer_instance == 1) {
+    } else if (timer_instance == 3) {
         TIM3_CR1 &= ~TIM_CR1_CEN;
         TIM3_DIER = 0;
     } else {
         TIM4_CR1 &= ~TIM_CR1_CEN;
         TIM4_DIER = 0;
     }
-    s_cb_arr[timer_instance] = NULL;
-    s_cb_arg_arr[timer_instance] = NULL;
+    s_timer_instances[idx].waiting = 0;
 }
 
 /* TIM2 ISR: clear update flag, stop timer in one-shot mode, and release wait.
@@ -169,12 +174,12 @@ void hal_timer_stop(int timer_instance) {
 void TIM2_IRQHandler(void) {
     if (TIM2_SR & TIM_SR_UIF) {
         TIM2_SR &= ~TIM_SR_UIF; // clear UIF
-        if (s_one_shot[0]) {
+        if (s_timer_instances[0].one_shoot) {
             TIM2_CR1 &= ~TIM_CR1_CEN;
         }
-        s_waiting[0] = 0;
-        if (s_cb_arr[0]) {
-            s_cb_arr[0](s_cb_arg_arr[0]);
+        s_timer_instances[0].waiting = 0;
+        if (s_timer_instances[0].event) {
+            hal_event_set_mask(s_timer_instances[0].event);
         }
     }
 }
@@ -182,12 +187,12 @@ void TIM2_IRQHandler(void) {
 void TIM3_IRQHandler(void) {
     if (TIM3_SR & TIM_SR_UIF) {
         TIM3_SR &= ~TIM_SR_UIF;
-        if (s_one_shot[1]) {
+        if (s_timer_instances[1].one_shoot) {
             TIM3_CR1 &= ~TIM_CR1_CEN;
         }
-        s_waiting[1] = 0;
-        if (s_cb_arr[1]) {
-            s_cb_arr[1](s_cb_arg_arr[1]);
+        s_timer_instances[1].waiting = 0;
+        if (s_timer_instances[1].event) {
+            hal_event_set_mask(s_timer_instances[1].event);
         }
     }
 }
@@ -195,12 +200,12 @@ void TIM3_IRQHandler(void) {
 void TIM4_IRQHandler(void) {
     if (TIM4_SR & TIM_SR_UIF) {
         TIM4_SR &= ~TIM_SR_UIF;
-        if (s_one_shot[2]) {
+        if (s_timer_instances[2].one_shoot) {
             TIM4_CR1 &= ~TIM_CR1_CEN;
         }
-        s_waiting[2] = 0;
-        if (s_cb_arr[2]) {
-            s_cb_arr[2](s_cb_arg_arr[2]);
+        s_timer_instances[2].waiting = 0;
+        if (s_timer_instances[2].event) {
+            hal_event_set_mask(s_timer_instances[2].event);
         }
     }
 }
