@@ -316,7 +316,7 @@ impl TimerPeripheral<Running, 2> {
     }
 }
 
-impl TimerTrait for TimerPeripheral<Running, 0> {
+impl TimerTrait for TimerPeripheral<Running, 2> {
     fn start(&mut self, us: u32, event: Event) {
         cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = Some(event));
         // configure hardware timer to desired frequency (omitted)
@@ -337,7 +337,7 @@ impl TimerTrait for TimerPeripheral<Running, 0> {
     }
 }
 
-impl TimerTrait for TimerPeripheral<Running, 1> {
+impl TimerTrait for TimerPeripheral<Running, 3> {
     fn start(&mut self, us: u32, event: Event) {
         cortex_m::interrupt::free(|cs| *TIM3_EVENT.borrow(cs).borrow_mut() = Some(event));
         self.arm_delay(us);
@@ -356,7 +356,7 @@ impl TimerTrait for TimerPeripheral<Running, 1> {
     }
 }
 
-impl TimerTrait for TimerPeripheral<Running, 2> {
+impl TimerTrait for TimerPeripheral<Running, 4> {
     fn start(&mut self, us: u32, event: Event) {
         cortex_m::interrupt::free(|cs| *TIM4_EVENT.borrow(cs).borrow_mut() = Some(event));
         self.arm_delay(us);
@@ -392,7 +392,7 @@ macro_rules! make_timers {
     }
 }
 
-make_timers!(0, 1, 2);
+make_timers!(2, 3, 4);
 
 #[no_mangle]
 pub extern "C" fn TIM2() {
