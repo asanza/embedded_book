@@ -266,7 +266,11 @@ impl<const PIN: u8> Pin<Input, PIN> {
         unsafe { (core::ptr::read_volatile(idr) & mask) != 0 }
     }
 
-    pub fn enable_interrupt(&mut self, edge: Edge, ev_mask: u32) {
+    pub fn enable_interrupt<E>(&mut self, edge: Edge, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy,
+    {
+        let ev_mask = event.mask();
         let pin = PIN;
         let (idx, shift) = exticr_index_shift(pin);
         let line = (pin % 16) as u32;
@@ -313,11 +317,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
             core::ptr::write_volatile(EXTI_IMR, core::ptr::read_volatile(EXTI_IMR) | bit);
         }
 
-        cortex_m::interrupt::free(|cs| {
-            EXTI_EVENTS[(PIN % 16) as usize]
-                .borrow(cs)
-                .replace(Some(ev_mask));
-        });
+        cortex_m::interrupt::free(|cs| EXTI_EVENTS[(PIN % 16) as usize].borrow(cs).replace(Some(ev_mask)));
 
         // enable NVIC for the EXTI group covering this line
         let irq = if line <= 4 {
@@ -353,9 +353,11 @@ impl<const PIN: u8> Pin<Input, PIN> {
 
 // Implement the HAL InputInterrupt trait by forwarding to the inherent methods
 impl<const PIN: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, PIN> {
-    fn enable_interrupt(&mut self, edge: crate::hal::hal_gpio::Edge, ev_mask: u32) {
-        // Call the inherent method implementation
-        Pin::<Input, PIN>::enable_interrupt(self, edge, ev_mask);
+    fn enable_interrupt<E>(&mut self, edge: crate::hal::hal_gpio::Edge, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy,
+    {
+        Pin::<Input, PIN>::enable_interrupt(self, edge, event);
     }
 
     fn disable_interrupt(&mut self) {

@@ -35,6 +35,9 @@ pub trait ConfigurablePin {
 
 /// Optional extension trait implemented by input pins that support interrupts.
 pub trait InputInterrupt {
-    fn enable_interrupt(&mut self, edge: Edge, ev_mask: u32);
+    fn enable_interrupt<E>(&mut self, edge: Edge, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy;
+
     fn disable_interrupt(&mut self);
 }
