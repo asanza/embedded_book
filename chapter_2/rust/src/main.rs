@@ -7,7 +7,7 @@ use panic_halt as _;
 mod arch;
 mod hal;
 
-use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
+use crate::hal::hal_gpio::{ConfigurablePin, Pull};
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::{DebounceEdge, DebouncerOneShot};
 use arch::{GpioImpl, TimerImpl};
@@ -27,26 +27,23 @@ fn main() -> ! {
     let mut led = gpio.p5.into_output(false, true);
 
     #[cfg(feature = "nucleo")]
-    let mut but = gpio.p45.into_input(Pull::Up);
+    let but = gpio.p45.into_input(Pull::Up);
 
     #[cfg(feature = "qemu")]
-    let mut but = gpio.p0.into_input(Pull::None);
+    let but = gpio.p0.into_input(Pull::None);
 
     // Create an event (static storage) and start the blink timer.
     let ev = crate::make_event!();
     timer.start(DELAY_US, ev.clone());
 
-    // lets create an event for the gpio and bind the interrupt to it.
-    let gev = crate::make_event!();
-    but.enable_interrupt(crate::Edge::Rising, gev);
+    // The DebouncerOneShot will register the pin interrupt itself.
 
     let mut state = false;
-    // Read initial button state to compute pressed polarity.
-    let pressed_level = !but.read();
     // Logical toggle state: false = slow (500ms), true = fast (100ms)
     let mut fast = false;
-    // Create a DebouncerOneShot using a closure reader over `but`.
-    let mut deb = DebouncerOneShot::new(|| but.read(), one_shot, pressed_level);
+    // Create a DebouncerOneShot that owns the input pin and the one-shot timer.
+    // The constructor auto-detects the pressed polarity and uses the given timeout.
+    let mut deb = DebouncerOneShot::new(but, one_shot, 20_000);
 
     loop {
         if ev.poll() {
@@ -54,7 +51,7 @@ fn main() -> ! {
             led.write(state);
         }
 
-        // One-shot debouncer: poll the one-shot event and update state.
+        // One-shot debouncer: poll the input event and arm timer as needed.
         if let Some(edge) = deb.poll() {
             match edge {
                 DebounceEdge::Pressed => {

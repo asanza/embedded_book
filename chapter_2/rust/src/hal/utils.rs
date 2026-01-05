@@ -1,3 +1,4 @@
+// Minimal HAL utilities: Event, macro, and simple debouncers.
 use core::cell::RefCell;
 use cortex_m::interrupt::Mutex;
 
@@ -6,22 +7,19 @@ pub struct Event {
 }
 
 impl Event {
-    /// Create from static storage (internal use)
     pub(crate) const fn from_static(flag: &'static Mutex<RefCell<bool>>) -> Self {
         Event { flag }
     }
 
-    /// Check and clear the event flag
     pub fn poll(&self) -> bool {
         cortex_m::interrupt::free(|cs| {
-            let mut flag = self.flag.borrow(cs).borrow_mut();
-            let was_set = *flag;
-            *flag = false;
-            was_set
+            let mut f = self.flag.borrow(cs).borrow_mut();
+            let v = *f;
+            *f = false;
+            v
         })
     }
 
-    /// Trigger the event (called from interrupt)
     pub(crate) fn trigger(&self) {
         cortex_m::interrupt::free(|cs| {
             *self.flag.borrow(cs).borrow_mut() = true;
@@ -35,7 +33,6 @@ impl Clone for Event {
     }
 }
 
-/// Macro to create events with static storage
 #[macro_export]
 macro_rules! make_event {
     () => {{
@@ -45,21 +42,17 @@ macro_rules! make_event {
     }};
 }
 
-// Small, no_std-friendly debouncer utility.
-// Uses a majority counter policy: sample pushes counter toward pressed or released.
-use core::marker::PhantomData;
-
 pub enum DebounceEdge {
     Pressed,
     Released,
 }
 
+/// Simple majority counter debouncer for sampling-based use.
 pub struct Debouncer<P> {
     pin: P,
     counter: i8,
     threshold: i8,
     pressed_level: bool,
-    _marker: PhantomData<P>,
 }
 
 impl<P> Debouncer<P>
@@ -72,11 +65,9 @@ where
             counter: 0,
             threshold,
             pressed_level,
-            _marker: PhantomData,
         }
     }
 
-    /// Call this on each sampling tick; returns Some(Edge) when a stable edge is detected.
     pub fn sample(&mut self) -> Option<DebounceEdge> {
         let s = (self.pin)();
         if s == self.pressed_level {
@@ -90,33 +81,27 @@ where
         }
 
         if self.counter >= self.threshold {
-            self.counter = self.threshold; // clamp
+            self.counter = self.threshold;
             return Some(DebounceEdge::Pressed);
         }
-
         if self.counter <= -self.threshold {
             self.counter = -self.threshold;
             return Some(DebounceEdge::Released);
         }
-
         None
     }
 }
 
-/// One-shot timer-backed debouncer.
-///
-/// Usage: create with a pin reader closure and a hardware timer implementing
-/// the `Timer` trait. Call `on_change(debounce_us)` when you observe a raw
-/// transition (e.g. from an interrupt or poll). Then call `poll()` regularly
-/// in the main loop; when the timer fires `poll()` will return a
-/// `Some(DebounceEdge)` if a stable edge was detected.
+/// One-shot timer-backed debouncer with KISS API.
+/// Call `DebouncerOneShot::new(pin, timer, debounce_us)` and then `poll()`.
 pub struct DebouncerOneShot<T, P>
 where
-    P: FnMut() -> bool,
     T: crate::hal::hal_timer::Timer,
+    P: crate::hal::hal_gpio::InputInterrupt + crate::hal::hal_gpio::Gpio,
 {
     pin: P,
     timer: T,
+    debounce_us: u32,
     event: Event,
     armed: bool,
     last_state: bool,
@@ -125,15 +110,34 @@ where
 
 impl<T, P> DebouncerOneShot<T, P>
 where
-    P: FnMut() -> bool,
     T: crate::hal::hal_timer::Timer,
+    P: crate::hal::hal_gpio::InputInterrupt + crate::hal::hal_gpio::Gpio,
 {
-    pub fn new(mut pin: P, timer: T, pressed_level: bool) -> Self {
-        let cur = (pin)();
+    /// Create a debouncer that auto-detects pressed polarity by sampling
+    /// the pin a few times and uses the provided debounce timeout.
+    pub fn new(mut pin: P, timer: T, debounce_us: u32) -> Self {
+        let mut ones = 0u8;
+        let samples = 3u8;
+        for _ in 0..samples {
+            if pin.read() {
+                ones += 1;
+            }
+            for _ in 0..1000 {
+                cortex_m::asm::nop();
+            }
+        }
+
+        let idle = ones * 2 >= samples;
+        let pressed_level = !idle;
+
+        let cur = pin.read();
         let ev = crate::make_event!();
+        pin.enable_interrupt(crate::hal::hal_gpio::Edge::Both, ev.clone());
+
         DebouncerOneShot {
             pin,
             timer,
+            debounce_us,
             event: ev,
             armed: false,
             last_state: cur,
@@ -141,22 +145,22 @@ where
         }
     }
 
-    /// Arm the one-shot timer if the pin changed since last observed state.
-    /// If already armed this is a no-op.
-    pub fn on_change(&mut self, debounce_us: u32) {
-        let cur = (self.pin)();
-        if cur != self.last_state && !self.armed {
-            self.timer.start(debounce_us, self.event.clone());
-            self.armed = true;
-        }
-    }
-
-    /// Poll the debouncer; returns `Some(DebounceEdge)` when the one-shot timer
-    /// fired and a stable edge was detected.
+    /// Poll once: read ISR event, arm timer if a raw change happened, and
+    /// return a stable DebounceEdge when the one-shot timer fires.
     pub fn poll(&mut self) -> Option<DebounceEdge> {
+        // If ISR set the event, arm the timer if needed
+        if self.event.poll() {
+            let cur = self.pin.read();
+            if cur != self.last_state && !self.armed {
+                self.timer.start(self.debounce_us, self.event.clone());
+                self.armed = true;
+            }
+        }
+
+        // If timer fired, evaluate stable state.
         if self.armed && self.event.poll() {
             self.armed = false;
-            let s = (self.pin)();
+            let s = self.pin.read();
             if s == self.pressed_level && self.last_state != self.pressed_level {
                 self.last_state = s;
                 return Some(DebounceEdge::Pressed);
@@ -166,6 +170,8 @@ where
                 return Some(DebounceEdge::Released);
             }
         }
+
         None
     }
 }
+

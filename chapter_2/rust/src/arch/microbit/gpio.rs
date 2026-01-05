@@ -170,6 +170,20 @@ impl<const INDEX: u8> Pin<Input, INDEX> {
     }
 }
 
+// Micro:bit currently does not implement EXTI wiring; provide a simple
+// implementation of the `InputInterrupt` trait that forwards to the
+// inherent enable/disable methods if they are later added, for now
+// these are no-ops so the debouncer can still be constructed.
+impl<const INDEX: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, INDEX> {
+    fn enable_interrupt(&mut self, _edge: crate::hal::hal_gpio::Edge, _ev: crate::hal::utils::Event) {
+        // No-op on micro:bit (no EXTI wiring implemented here).
+    }
+
+    fn disable_interrupt(&mut self) {
+        // No-op
+    }
+}
+
 impl<const INDEX: u8> GpioTrait for Pin<Input, INDEX> {
     fn write(&mut self, _high: bool) { /* not applicable for input */
     }

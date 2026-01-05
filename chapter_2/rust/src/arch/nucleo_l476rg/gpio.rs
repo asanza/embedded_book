@@ -351,6 +351,18 @@ impl<const PIN: u8> Pin<Input, PIN> {
     }
 }
 
+// Implement the HAL InputInterrupt trait by forwarding to the inherent methods
+impl<const PIN: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, PIN> {
+    fn enable_interrupt(&mut self, edge: crate::hal::hal_gpio::Edge, ev: crate::hal::utils::Event) {
+        // Call the inherent method implementation
+        Pin::<Input, PIN>::enable_interrupt(self, edge, ev);
+    }
+
+    fn disable_interrupt(&mut self) {
+        Pin::<Input, PIN>::disable_interrupt(self);
+    }
+}
+
 impl<const PIN: u8> Pin<NotConfigured, PIN> {
     // The actual constructors are provided via the `ConfigurablePin` trait
 }
