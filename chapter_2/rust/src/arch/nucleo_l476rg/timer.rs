@@ -1,10 +1,9 @@
-use crate::hal::utils::Event;
+// Event import not required in this module
 use core::marker::PhantomData;
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, Ordering};
 use cortex_m::asm;
 use cortex_m::interrupt::Mutex;
-// `cortex_m::interrupt` not needed here
 use core::cell::RefCell;
 
 // TIM2 peripheral (interrupt-driven delay)
@@ -52,13 +51,14 @@ const TIMER_CLOCK_HZ: u32 = 4_000_000;
 
 static TIM2_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM2_ONE_SHOT: AtomicBool = AtomicBool::new(false);
-static TIM2_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+/* store the event mask (u32) so ISRs can signal without knowing concrete Event type */
+static TIM2_EVENT_MASK: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
 static TIM3_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM3_ONE_SHOT: AtomicBool = AtomicBool::new(false);
-static TIM3_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIM3_EVENT_MASK: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
 static TIM4_FIRED: AtomicBool = AtomicBool::new(false);
 static TIM4_ONE_SHOT: AtomicBool = AtomicBool::new(false);
-static TIM4_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIM4_EVENT_MASK: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
 
 use crate::hal::hal_timer::Timer as TimerTrait;
 
@@ -82,9 +82,9 @@ impl<MODE, const IDX: u8> TimerPeripheral<MODE, IDX> {
     }
 }
 
-impl TimerPeripheral<NotConfigured, 0> {
+impl TimerPeripheral<NotConfigured, 2> {
     /// Initialize TIM2 as a periodic timer and enable its IRQ; transition to `Running`.
-    pub fn into_periodic(self) -> TimerPeripheral<Running, 0> {
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 2> {
         TIM2_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM2 clock on APB1
@@ -108,7 +108,7 @@ impl TimerPeripheral<NotConfigured, 0> {
     }
 
     /// Initialize TIM2 as a one-shot timer and enable its IRQ; transition to `Running`.
-    pub fn into_oneshot(self) -> TimerPeripheral<Running, 0> {
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 2> {
         TIM2_ONE_SHOT.store(true, Ordering::Release);
         unsafe {
             // Enable TIM2 clock on APB1
@@ -132,9 +132,9 @@ impl TimerPeripheral<NotConfigured, 0> {
     }
 }
 
-impl TimerPeripheral<NotConfigured, 1> {
+impl TimerPeripheral<NotConfigured, 3> {
     /// Initialize TIM3 as periodic and enable its IRQ; transition to `Running`.
-    pub fn into_periodic(self) -> TimerPeripheral<Running, 1> {
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 3> {
         TIM3_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM3 clock on APB1 (TIM3EN is bit 1)
@@ -158,7 +158,7 @@ impl TimerPeripheral<NotConfigured, 1> {
     }
 
     /// Initialize TIM3 as one-shot and enable its IRQ; transition to `Running`.
-    pub fn into_oneshot(self) -> TimerPeripheral<Running, 1> {
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 3> {
         TIM3_ONE_SHOT.store(true, Ordering::Release);
         unsafe {
             // Enable TIM3 clock on APB1 (TIM3EN is bit 1)
@@ -182,9 +182,9 @@ impl TimerPeripheral<NotConfigured, 1> {
     }
 }
 
-impl TimerPeripheral<NotConfigured, 2> {
+impl TimerPeripheral<NotConfigured, 4> {
     /// Initialize TIM4 as periodic and enable its IRQ; transition to `Running`.
-    pub fn into_periodic(self) -> TimerPeripheral<Running, 2> {
+    pub fn into_periodic(self) -> TimerPeripheral<Running, 4> {
         TIM4_ONE_SHOT.store(false, Ordering::Release);
         unsafe {
             // Enable TIM4 clock on APB1 (TIM4EN is bit 2)
@@ -208,7 +208,7 @@ impl TimerPeripheral<NotConfigured, 2> {
     }
 
     /// Initialize TIM4 as one-shot and enable its IRQ; transition to `Running`.
-    pub fn into_oneshot(self) -> TimerPeripheral<Running, 2> {
+    pub fn into_oneshot(self) -> TimerPeripheral<Running, 4> {
         TIM4_ONE_SHOT.store(true, Ordering::Release);
         unsafe {
             // Enable TIM4 clock on APB1 (TIM4EN is bit 2)
@@ -232,7 +232,7 @@ impl TimerPeripheral<NotConfigured, 2> {
     }
 }
 
-impl TimerPeripheral<Running, 0> {
+impl TimerPeripheral<Running, 2> {
     fn arm_delay(&self, us: u32) {
         unsafe {
             TIM2_FIRED.store(false, Ordering::Release);
@@ -261,7 +261,7 @@ impl TimerPeripheral<Running, 0> {
     }
 }
 
-impl TimerPeripheral<Running, 1> {
+impl TimerPeripheral<Running, 3> {
     fn arm_delay(&self, us: u32) {
         unsafe {
             TIM3_FIRED.store(false, Ordering::Release);
@@ -288,7 +288,7 @@ impl TimerPeripheral<Running, 1> {
     }
 }
 
-impl TimerPeripheral<Running, 2> {
+impl TimerPeripheral<Running, 4> {
     fn arm_delay(&self, us: u32) {
         assert!(us <= 65535);
         unsafe {
@@ -317,8 +317,12 @@ impl TimerPeripheral<Running, 2> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 2> {
-    fn start(&mut self, us: u32, event: Event) {
-        cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = Some(event));
+    fn start<E>(&mut self, us: u32, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy,
+    {
+        let mask = event.mask();
+        cortex_m::interrupt::free(|cs| *TIM2_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
         // configure hardware timer to desired frequency (omitted)
         self.arm_delay(us);
     }
@@ -328,7 +332,7 @@ impl TimerTrait for TimerPeripheral<Running, 2> {
             write_volatile(TIM2_CR1, read_volatile(TIM2_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM2_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM2_EVENT.borrow(cs).borrow_mut() = None);
+        cortex_m::interrupt::free(|cs| *TIM2_EVENT_MASK.borrow(cs).borrow_mut() = None);
     }
 
     fn is_running(&self) -> bool {
@@ -338,8 +342,12 @@ impl TimerTrait for TimerPeripheral<Running, 2> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 3> {
-    fn start(&mut self, us: u32, event: Event) {
-        cortex_m::interrupt::free(|cs| *TIM3_EVENT.borrow(cs).borrow_mut() = Some(event));
+    fn start<E>(&mut self, us: u32, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy,
+    {
+        let mask = event.mask();
+        cortex_m::interrupt::free(|cs| *TIM3_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
         self.arm_delay(us);
     }
 
@@ -348,7 +356,7 @@ impl TimerTrait for TimerPeripheral<Running, 3> {
             write_volatile(TIM3_CR1, read_volatile(TIM3_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM3_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM3_EVENT.borrow(cs).borrow_mut() = None);
+        cortex_m::interrupt::free(|cs| *TIM3_EVENT_MASK.borrow(cs).borrow_mut() = None);
     }
 
     fn is_running(&self) -> bool {
@@ -357,8 +365,12 @@ impl TimerTrait for TimerPeripheral<Running, 3> {
 }
 
 impl TimerTrait for TimerPeripheral<Running, 4> {
-    fn start(&mut self, us: u32, event: Event) {
-        cortex_m::interrupt::free(|cs| *TIM4_EVENT.borrow(cs).borrow_mut() = Some(event));
+    fn start<E>(&mut self, us: u32, event: E)
+    where
+        E: crate::hal::utils::Trigger + Copy,
+    {
+        let mask = event.mask();
+        cortex_m::interrupt::free(|cs| *TIM4_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
         self.arm_delay(us);
     }
 
@@ -367,7 +379,7 @@ impl TimerTrait for TimerPeripheral<Running, 4> {
             write_volatile(TIM4_CR1, read_volatile(TIM4_CR1) & !TIM_CR1_CEN);
             write_volatile(TIM4_DIER, 0);
         }
-        cortex_m::interrupt::free(|cs| *TIM4_EVENT.borrow(cs).borrow_mut() = None);
+        cortex_m::interrupt::free(|cs| *TIM4_EVENT_MASK.borrow(cs).borrow_mut() = None);
     }
 
     fn is_running(&self) -> bool {
@@ -407,8 +419,8 @@ pub extern "C" fn TIM2() {
     TIM2_FIRED.store(true, Ordering::Release);
     // trigger event if registered
     cortex_m::interrupt::free(|cs| {
-        if let Some(ref e) = *TIM2_EVENT.borrow(cs).borrow() {
-            e.trigger();
+        if let Some(mask) = *TIM2_EVENT_MASK.borrow(cs).borrow() {
+            crate::hal::utils::signal_mask(mask);
         }
     });
 }
@@ -425,8 +437,8 @@ pub extern "C" fn TIM3() {
     }
     TIM3_FIRED.store(true, Ordering::Release);
     cortex_m::interrupt::free(|cs| {
-        if let Some(ref e) = *TIM3_EVENT.borrow(cs).borrow() {
-            e.trigger();
+        if let Some(mask) = *TIM3_EVENT_MASK.borrow(cs).borrow() {
+            crate::hal::utils::signal_mask(mask);
         }
     });
 }
@@ -443,8 +455,8 @@ pub extern "C" fn TIM4() {
     }
     TIM4_FIRED.store(true, Ordering::Release);
     cortex_m::interrupt::free(|cs| {
-        if let Some(ref e) = *TIM4_EVENT.borrow(cs).borrow() {
-            e.trigger();
+        if let Some(mask) = *TIM4_EVENT_MASK.borrow(cs).borrow() {
+            crate::hal::utils::signal_mask(mask);
         }
     });
 }

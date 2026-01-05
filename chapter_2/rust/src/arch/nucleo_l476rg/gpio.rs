@@ -90,9 +90,9 @@ fn exti_common_handler(line: u8) {
             write_volatile(EXTI_PR, bit);
             cortex_m::interrupt::free(|cs| {
                 let idx = (line % 16) as usize;
-                if let Some(ev) = EXTI_EVENTS[idx].borrow(cs).borrow().as_ref().cloned() {
-                    ev.trigger();
-                }
+                if let Some(mask) = *EXTI_EVENTS[idx].borrow(cs).borrow() {
+                        crate::hal::utils::signal_mask(mask);
+                    }
             });
         }
     }
@@ -100,7 +100,7 @@ fn exti_common_handler(line: u8) {
 
 use typestate::*;
 
-use crate::hal::utils::Event;
+// Event import not required in this module
 use core::cell::RefCell;
 use cortex_m::interrupt::Mutex;
 
@@ -114,7 +114,7 @@ const EXTI_FTSR: *mut u32 = (EXTI_BASE + 0x0C) as *mut u32;
 const EXTI_PR: *mut u32 = (EXTI_BASE + 0x14) as *mut u32;
 
 // Registry for EXTI lines 0..15
-static EXTI_EVENTS: [Mutex<RefCell<Option<Event>>>; 16] = [
+static EXTI_EVENTS: [Mutex<RefCell<Option<u32>>>; 16] = [
     Mutex::new(RefCell::new(None)),
     Mutex::new(RefCell::new(None)),
     Mutex::new(RefCell::new(None)),
@@ -266,7 +266,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
         unsafe { (core::ptr::read_volatile(idr) & mask) != 0 }
     }
 
-    pub fn enable_interrupt(&mut self, edge: Edge, ev: Event) {
+    pub fn enable_interrupt(&mut self, edge: Edge, ev_mask: u32) {
         let pin = PIN;
         let (idx, shift) = exticr_index_shift(pin);
         let line = (pin % 16) as u32;
@@ -316,7 +316,7 @@ impl<const PIN: u8> Pin<Input, PIN> {
         cortex_m::interrupt::free(|cs| {
             EXTI_EVENTS[(PIN % 16) as usize]
                 .borrow(cs)
-                .replace(Some(ev));
+                .replace(Some(ev_mask));
         });
 
         // enable NVIC for the EXTI group covering this line
@@ -353,9 +353,9 @@ impl<const PIN: u8> Pin<Input, PIN> {
 
 // Implement the HAL InputInterrupt trait by forwarding to the inherent methods
 impl<const PIN: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, PIN> {
-    fn enable_interrupt(&mut self, edge: crate::hal::hal_gpio::Edge, ev: crate::hal::utils::Event) {
+    fn enable_interrupt(&mut self, edge: crate::hal::hal_gpio::Edge, ev_mask: u32) {
         // Call the inherent method implementation
-        Pin::<Input, PIN>::enable_interrupt(self, edge, ev);
+        Pin::<Input, PIN>::enable_interrupt(self, edge, ev_mask);
     }
 
     fn disable_interrupt(&mut self) {

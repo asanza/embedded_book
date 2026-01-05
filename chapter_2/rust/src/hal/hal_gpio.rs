@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::hal::utils::Event;
+// Event import not required in this HAL trait file
 
 /// Basic GPIO read/write trait.
 pub trait Gpio {
@@ -35,6 +35,6 @@ pub trait ConfigurablePin {
 
 /// Optional extension trait implemented by input pins that support interrupts.
 pub trait InputInterrupt {
-    fn enable_interrupt(&mut self, edge: Edge, ev: Event);
+    fn enable_interrupt(&mut self, edge: Edge, ev_mask: u32);
     fn disable_interrupt(&mut self);
 }
