@@ -33,13 +33,13 @@ int main(void) {
         /* wait for timer event */
         if ( evt & BLINK_EVT ) {
             led_state = !led_state;
-            hal_gpio_write(LED_GPIO, led_state ? 1 : 0);
+            hal_gpio_write(LED_GPIO, led_state);
         } else if(evt & GPIO_EVT && !running ) {
             hal_timer_start(DEBOUNCE_TIMER, 10000);
             running = true;
         } else if(evt & DEBNC_EVT && running) {
             hal_timer_stop(BLINK_TIMER);
-            if (fast) {
+            if (!fast) {
                 hal_timer_start(BLINK_TIMER, 50000);
             } else {
                 hal_timer_start(BLINK_TIMER, DELAY_MS);
