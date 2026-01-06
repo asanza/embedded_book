@@ -7,7 +7,7 @@ use panic_halt as _;
 mod arch;
 mod hal;
 
-use crate::hal::hal_gpio::{ConfigurablePin, Pull};
+use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
 use crate::hal::hal_gpio::InputInterrupt;
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::{poll_all, Event};
@@ -42,12 +42,9 @@ fn main() -> ! {
     let mut but = gpio.p0.into_input(Pull::None);
 
     // Create events directly (no factory) — simple, static zero-sized events.
-    let blink_evt = crate::hal::utils::Event::<0>::new();
-    let gpio_evt = crate::hal::utils::Event::<1>::new();
-    let debnc_evt = crate::hal::utils::Event::<2>::new();
-
-    // Initialize global events storage (if needed)
-    crate::hal::utils::signal_mask(0); // no-op, ensures module linked
+    let blink_evt = Event::<0>::new();
+    let gpio_evt = Event::<1>::new();
+    let debnc_evt = Event::<2>::new();
 
     // Associate event and start the blink timer
     blink_timer.enable_interrupt(blink_evt);
@@ -56,7 +53,7 @@ fn main() -> ! {
     debounce_timer.enable_interrupt(debnc_evt);
 
     // Configure input interrupt to set bit 2 (GPIO event)
-    but.enable_interrupt(crate::hal::hal_gpio::Edge::Falling, gpio_evt);
+    but.enable_interrupt(Edge::Falling, gpio_evt);
 
     let mut running = false;
     let mut fast = false;
