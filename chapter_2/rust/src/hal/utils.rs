@@ -32,7 +32,7 @@ impl<const BIT: u8> Event<BIT> {
 
 impl<const BIT: u8> Trigger for Event<BIT> {
     fn trigger(&self) {
-        EVENTS.fetch_or(Self::mask(), Ordering::Relaxed);
+        EVENTS.fetch_or(Self::mask(), Ordering::Release);
     }
     fn mask(&self) -> u32 { Self::mask() }
 }
