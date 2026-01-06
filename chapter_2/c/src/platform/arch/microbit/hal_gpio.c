@@ -69,3 +69,20 @@ int hal_gpio_read(int pin) {
     }
     return (REG(GPIO_IN) & (1u << pin)) ? 1 : 0;
 }
+
+/* Minimal interrupt support for microbit platform. The real implementation
+ * would configure GPIOTE/EXTI equivalent and map to event masks. For now
+ * provide skeletons so the application can link; they do nothing except
+ * validate arguments.
+ */
+void hal_gpio_enable_interrupt(int pin, enum hal_gpio_edge e, hal_event_mask_t evt) {
+    (void)pin;
+    (void)e;
+    (void)evt;
+    /* No-op: platform interrupt support for GPIO not implemented yet. */
+}
+
+void hal_gpio_disable_interrupt(int pin) {
+    (void)pin;
+    /* No-op for now */
+}

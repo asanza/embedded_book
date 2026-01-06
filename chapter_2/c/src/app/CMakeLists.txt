@@ -33,6 +33,7 @@ add_custom_target(run-qemu
   USES_TERMINAL
   COMMENT "Run app-qemu under QEMU (microbit)"
 )
+target_compile_definitions(app-qemu PRIVATE "QEMU")
 
 add_executable(app-nucleo ${CMAKE_CURRENT_SOURCE_DIR}/main.c)
 
@@ -53,6 +54,7 @@ target_link_options(app-nucleo PRIVATE
 )
 
 target_include_directories(app-nucleo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(app-nucleo PRIVATE "NUCLEO")
 
 # Custom target to flash and run `app-nucleo` using OpenOCD (Nucleo-L476RG)
 add_custom_target(run-nucleo

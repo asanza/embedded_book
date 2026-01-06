@@ -3,10 +3,19 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define DELAY_MS       (500u * 1000)
+#define DELAY_MS (500u * 1000)
+
+#if defined NUCLEO
 #define LED_GPIO       (5)
-#define BLINK_TIMER (2)
+#define BUT_GPIO       (45)
+#define BLINK_TIMER    (2)
 #define DEBOUNCE_TIMER (3)
+#elif defined QEMU
+#define LED_GPIO       (5)
+#define BUT_GPIO       (0)
+#define BLINK_TIMER    (0)
+#define DEBOUNCE_TIMER (1)
+#endif
 
 int main(void) {
 
@@ -22,21 +31,21 @@ int main(void) {
     hal_gpio_init_out(LED_GPIO, false, 1);
     hal_timer_start(BLINK_TIMER, DELAY_MS);
 
-    hal_gpio_init_in(45, HAL_GPIO_PULLUP);
-    hal_gpio_enable_interrupt(45, HAL_GPIO_EDGE_FALLING, GPIO_EVT);
+    hal_gpio_init_in(BUT_GPIO, HAL_GPIO_PULLUP);
+    hal_gpio_enable_interrupt(BUT_GPIO, HAL_GPIO_EDGE_FALLING, GPIO_EVT);
 
     bool running = false;
     bool fast = false;
     while (1) {
         hal_event_mask_t evt = hal_event_poll();
         /* wait for timer event */
-        if ( evt & BLINK_EVT ) {
+        if (evt & BLINK_EVT) {
             bool led_state = !hal_gpio_read(LED_GPIO);
             hal_gpio_write(LED_GPIO, led_state);
-        } else if(evt & GPIO_EVT && !running ) {
+        } else if (evt & GPIO_EVT && !running) {
             hal_timer_start(DEBOUNCE_TIMER, 20000);
             running = true;
-        } else if(evt & DEBNC_EVT && running) {
+        } else if (evt & DEBNC_EVT && running) {
             hal_timer_stop(BLINK_TIMER);
             if (!fast) {
                 hal_timer_start(BLINK_TIMER, 50000);
