@@ -29,6 +29,7 @@ add_custom_target(run-qemu
   -monitor null
   -serial null
   -semihosting-config enable=on,target=native
+  -gdb tcp::1234
   DEPENDS app-qemu
   USES_TERMINAL
   COMMENT "Run app-qemu under QEMU (microbit)"
