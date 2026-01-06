@@ -441,7 +441,7 @@ pub extern "C" fn TIM2() {
     // trigger event if registered
     cortex_m::interrupt::free(|cs| {
         if let Some(mask) = *TIM2_EVENT_MASK.borrow(cs).borrow() {
-            crate::hal::utils::signal_mask(mask);
+            crate::arch::events::signal_mask(mask);
         }
     });
 }
@@ -459,7 +459,7 @@ pub extern "C" fn TIM3() {
     TIM3_FIRED.store(true, Ordering::Release);
     cortex_m::interrupt::free(|cs| {
         if let Some(mask) = *TIM3_EVENT_MASK.borrow(cs).borrow() {
-            crate::hal::utils::signal_mask(mask);
+            crate::arch::events::signal_mask(mask);
         }
     });
 }
@@ -477,7 +477,7 @@ pub extern "C" fn TIM4() {
     TIM4_FIRED.store(true, Ordering::Release);
     cortex_m::interrupt::free(|cs| {
         if let Some(mask) = *TIM4_EVENT_MASK.borrow(cs).borrow() {
-            crate::hal::utils::signal_mask(mask);
+            crate::arch::events::signal_mask(mask);
         }
     });
 }

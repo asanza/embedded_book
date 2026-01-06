@@ -8,7 +8,6 @@ mod arch;
 mod hal;
 
 use crate::hal::hal_gpio::{ConfigurablePin, Pull, Edge};
-use crate::hal::hal_gpio::InputInterrupt;
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::{poll_all, Event};
 use arch::{GpioImpl, TimerImpl};

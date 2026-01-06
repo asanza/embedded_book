@@ -204,17 +204,17 @@ unsafe fn handle_timer_irq(idx: usize) {
     match idx {
         0 => cortex_m::interrupt::free(|cs| {
             if let Some(mask) = *TIMER0_EVENT.borrow(cs).borrow() {
-                crate::hal::utils::signal_mask(mask);
+                crate::arch::events::signal_mask(mask);
             }
         }),
         1 => cortex_m::interrupt::free(|cs| {
             if let Some(mask) = *TIMER1_EVENT.borrow(cs).borrow() {
-                crate::hal::utils::signal_mask(mask);
+                crate::arch::events::signal_mask(mask);
             }
         }),
         2 => cortex_m::interrupt::free(|cs| {
             if let Some(mask) = *TIMER2_EVENT.borrow(cs).borrow() {
-                crate::hal::utils::signal_mask(mask);
+                crate::arch::events::signal_mask(mask);
             }
         }),
         _ => (),

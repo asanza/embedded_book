@@ -91,7 +91,7 @@ fn exti_common_handler(line: u8) {
             cortex_m::interrupt::free(|cs| {
                 let idx = (line % 16) as usize;
                 if let Some(mask) = *EXTI_EVENTS[idx].borrow(cs).borrow() {
-                        crate::hal::utils::signal_mask(mask);
+                        crate::arch::events::signal_mask(mask);
                     }
             });
         }

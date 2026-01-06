@@ -1,6 +1,8 @@
 #[cfg(feature = "qemu")]
 pub mod microbit;
 
+pub mod events;
+
 #[cfg(feature = "nucleo")]
 pub mod nucleo_l476rg;
 
