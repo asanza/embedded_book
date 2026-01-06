@@ -168,6 +168,23 @@ impl<const INDEX: u8> Pin<Input, INDEX> {
         let bit = 1u32 << INDEX;
         unsafe { (core::ptr::read_volatile(GPIO_IN) & bit) != 0 }
     }
+
+    /// Enable an input interrupt for this pin (inherent method for API parity).
+    ///
+    /// Currently a no-op for the micro:bit backend (no EXTI wiring), but having
+    /// this inherent method makes the API resolution consistent with the
+    /// Nucleo implementation.
+    pub fn enable_interrupt<E>(&mut self, _edge: crate::hal::hal_gpio::Edge, _ev: E)
+    where
+        E: crate::hal::utils::Trigger,
+    {
+        // No-op on micro:bit.
+    }
+
+    /// Disable input interrupt for this pin (inherent method, no-op here).
+    pub fn disable_interrupt(&mut self) {
+        // No-op
+    }
 }
 
 // Micro:bit currently does not implement EXTI wiring; provide a simple

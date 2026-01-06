@@ -15,30 +15,36 @@ use arch::{GpioImpl, TimerImpl};
 #[entry]
 fn main() -> ! {
     const DELAY_US: u32 = 500_000;
-    // Construct timer collection and pick board-appropriate timers.
+    // Initialize board resources via grouped cfg blocks to avoid repeating attributes
     let timers = TimerImpl::new();
 
-    #[cfg(feature = "nucleo")]
-    let mut blink_timer = timers.t2.into_periodic();
+    let blink_timer_opt: Option<_>;
+    let debounce_timer_opt: Option<_>;
+    let led_opt: Option<_>;
+    let but_opt: Option<_>;
 
     #[cfg(feature = "nucleo")]
-    let mut debounce_timer = timers.t3.into_oneshot();
+    {
+        blink_timer_opt = Some(timers.t2.into_periodic());
+        debounce_timer_opt = Some(timers.t3.into_oneshot());
+        let gpio = GpioImpl::new();
+        led_opt = Some(gpio.p5.into_output(false, true));
+        but_opt = Some(gpio.p45.into_input(Pull::Up));
+    }
 
     #[cfg(feature = "qemu")]
-    let mut blink_timer = timers.t0.into_periodic();
+    {
+        blink_timer_opt = Some(timers.t0.into_periodic());
+        debounce_timer_opt = Some(timers.t1.into_oneshot());
+        let gpio = GpioImpl::new();
+        led_opt = Some(gpio.p5.into_output(false, true));
+        but_opt = Some(gpio.p0.into_input(Pull::None));
+    }
 
-    #[cfg(feature = "qemu")]
-    let mut debounce_timer = timers.t1.into_oneshot();
-
-    // Construct the board GPIO collection once and move individual pins out.
-    let gpio = GpioImpl::new();
-    let mut led = gpio.p5.into_output(false, true);
-
-    #[cfg(feature = "nucleo")]
-    let mut but = gpio.p45.into_input(Pull::Up);
-
-    #[cfg(feature = "qemu")]
-    let mut but = gpio.p0.into_input(Pull::None);
+    let mut blink_timer = blink_timer_opt.expect("timer not configured");
+    let mut debounce_timer = debounce_timer_opt.expect("debounce timer not configured");
+    let mut led = led_opt.expect("led not configured");
+    let mut but = but_opt.expect("button not configured");
 
     // Create events directly (no factory) — simple, static zero-sized events.
     let blink_evt = Event::<0>::new();
