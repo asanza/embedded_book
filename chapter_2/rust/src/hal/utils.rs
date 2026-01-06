@@ -12,10 +12,7 @@ pub trait Trigger {
     fn mask(&self) -> u32;
 }
 
-/// Trigger that can be owned and (re)instantiated by value.
-pub trait OwnableTrigger: Trigger + Sized {
-    fn new_owned() -> Self;
-}
+// (No owned trigger trait — zero-sized `Event` values are created via `Event::new()`.)
 
 /// Zero-sized, compile-time event type. `Event<0>` maps to bit 0, etc.
 pub struct Event<const BIT: u8>;
@@ -36,43 +33,14 @@ impl<const BIT: u8> Trigger for Event<BIT> {
     }
     fn mask(&self) -> u32 { Self::mask() }
 }
-
-impl<const BIT: u8> OwnableTrigger for Event<BIT> {
-    fn new_owned() -> Self {
-        Event
-    }
-}
-
-/// Simple value-level EventFactory that tracks which bits are already used.
-/// It returns a new `Event<BIT>` and a new `EventFactory` with the bit marked.
-#[derive(Copy, Clone)]
-pub struct EventFactory {
-    used: u32,
-}
-
-impl EventFactory {
-    pub const fn new() -> Self {
-        EventFactory { used: 0 }
-    }
-
-    pub fn create<const BIT: u8>(self) -> Result<(Event<BIT>, EventFactory), &'static str> {
-        if BIT >= 32 {
-            return Err("bit out of range");
-        }
-        let mask = 1u32 << (BIT as u32);
-        if (self.used & mask) != 0 {
-            return Err("event bit already allocated");
-        }
-        let new_factory = EventFactory { used: self.used | mask };
-        Ok((Event::<BIT>::new(), new_factory))
-    }
-}
+// No factory: the app creates `Event::<N>::new()` values directly.
 
 // (Removed compile-time factory and legacy BoolEvent to keep utils minimal.)
 
 /// Signal an event mask from other modules/ISRs.
 pub fn signal_mask(mask: u32) {
-    EVENTS.fetch_or(mask, Ordering::Relaxed);
+    // Use Release ordering to pair with `poll_all()` Acquire read.
+    EVENTS.fetch_or(mask, Ordering::Release);
 }
 
 /// Atomically read and clear the global event mask.

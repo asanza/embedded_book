@@ -328,7 +328,7 @@ impl TimerPeripheral<Running, 4> {
 impl TimerTrait for TimerPeripheral<Running, 2> {
     fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::OwnableTrigger,
+        E: crate::hal::utils::Trigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM2_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
@@ -357,7 +357,7 @@ impl TimerTrait for TimerPeripheral<Running, 2> {
 impl TimerTrait for TimerPeripheral<Running, 3> {
     fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::OwnableTrigger,
+        E: crate::hal::utils::Trigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM3_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));
@@ -384,7 +384,7 @@ impl TimerTrait for TimerPeripheral<Running, 3> {
 impl TimerTrait for TimerPeripheral<Running, 4> {
     fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: crate::hal::utils::OwnableTrigger,
+        E: crate::hal::utils::Trigger,
     {
         let mask = event.mask();
         cortex_m::interrupt::free(|cs| *TIM4_EVENT_MASK.borrow(cs).borrow_mut() = Some(mask));

@@ -1,11 +1,10 @@
 #![allow(dead_code)]
-use crate::hal::utils::OwnableTrigger;
 
 pub trait Timer {
     /// Associate an event with the timer and enable its interrupt.
     fn enable_interrupt<E>(&mut self, event: E)
     where
-        E: OwnableTrigger;
+        E: crate::hal::utils::Trigger;
 
     /// Start the timer with a given period in microseconds.
     fn start(&mut self, period_us: u32);

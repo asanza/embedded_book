@@ -33,9 +33,9 @@ fn main() -> ! {
     let but = gpio.p0.into_input(Pull::None);
 
     // Create events directly (no factory) — simple, static zero-sized events.
-    let blink_evt = crate::hal::utils::Event::<0>::new_owned();
-    let gpio_evt = crate::hal::utils::Event::<1>::new_owned();
-    let debnc_evt = crate::hal::utils::Event::<2>::new_owned();
+    let blink_evt = crate::hal::utils::Event::<0>::new();
+    let gpio_evt = crate::hal::utils::Event::<1>::new();
+    let debnc_evt = crate::hal::utils::Event::<2>::new();
 
     // Initialize global events storage (if needed)
     crate::hal::utils::signal_mask(0); // no-op, ensures module linked
