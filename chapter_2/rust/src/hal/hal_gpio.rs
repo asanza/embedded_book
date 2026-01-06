@@ -1,20 +1,19 @@
 #![allow(dead_code)]
-// Event import not required in this HAL trait file
 
-/// Basic GPIO read/write trait.
+/// Basic GPIO read/write trait
 pub trait Gpio {
     fn write(&mut self, high: bool);
     fn read(&mut self) -> bool;
 }
 
-/// Edge selection for GPIO interrupts.
+/// Edge selection for GPIO interrupts
 pub enum Edge {
     Rising,
     Falling,
     Both,
 }
 
-/// Pull-up / Pull-down configuration for inputs.
+/// Pull-up / Pull-down configuration for inputs
 pub enum Pull {
     None,
     Up,
@@ -22,9 +21,7 @@ pub enum Pull {
     Both,
 }
 
-/// Trait implemented by pins that can be configured from not-configured state
-/// into input or output modes. Associated types let implementations return
-/// their concrete typestate `Pin` types.
+/// Trait for pins that can be configured into input or output modes
 pub trait ConfigurablePin {
     type Input;
     type Output;
@@ -33,7 +30,7 @@ pub trait ConfigurablePin {
     fn into_output(self, open_drain: bool, initial_high: bool) -> Self::Output;
 }
 
-/// Optional extension trait implemented by input pins that support interrupts.
+/// Extension trait for input pins that support interrupts
 pub trait InputInterrupt {
     fn enable_interrupt<E>(&mut self, edge: Edge, event: E)
     where

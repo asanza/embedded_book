@@ -175,7 +175,10 @@ impl<const INDEX: u8> Pin<Input, INDEX> {
 // inherent enable/disable methods if they are later added, for now
 // these are no-ops so the debouncer can still be constructed.
 impl<const INDEX: u8> crate::hal::hal_gpio::InputInterrupt for Pin<Input, INDEX> {
-    fn enable_interrupt(&mut self, _edge: crate::hal::hal_gpio::Edge, _ev: crate::hal::utils::Event) {
+    fn enable_interrupt<E>(&mut self, _edge: crate::hal::hal_gpio::Edge, _ev: E)
+    where
+        E: crate::hal::utils::Trigger,
+    {
         // No-op on micro:bit (no EXTI wiring implemented here).
     }
 

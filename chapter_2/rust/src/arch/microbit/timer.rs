@@ -4,7 +4,6 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use cortex_m::asm;
 
 use crate::hal::hal_timer::Timer as TimerTrait;
-use crate::hal::utils::Event;
 use core::cell::RefCell;
 use cortex_m::interrupt::Mutex;
 
@@ -42,9 +41,9 @@ static TIMER_ONE_SHOT: [AtomicBool; 3] = [
     AtomicBool::new(false),
 ];
 
-static TIMER0_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
-static TIMER1_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
-static TIMER2_EVENT: Mutex<RefCell<Option<Event>>> = Mutex::new(RefCell::new(None));
+static TIMER0_EVENT: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
+static TIMER1_EVENT: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
+static TIMER2_EVENT: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
 
 pub mod typestate {
     pub struct NotConfigured;
@@ -136,37 +135,29 @@ impl<const IDX: u8> TimerPeripheral<Running, IDX> {
 }
 
 impl<const IDX: u8> TimerTrait for TimerPeripheral<Running, IDX> {
-    fn start(&mut self, frequency_us: u32, event: Event) {
-        // store the event in the corresponding static slot
+    fn enable_interrupt<E>(&mut self, event: E)
+    where
+        E: crate::hal::utils::Trigger,
+    {
+        let mask = event.mask();
         match IDX {
-            0 => {
-                cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = Some(event))
-            }
-            1 => {
-                cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = Some(event))
-            }
-            2 => {
-                cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = Some(event))
-            }
+            0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = Some(mask)),
+            1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = Some(mask)),
+            2 => cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = Some(mask)),
             _ => {}
         }
+    }
 
+    fn start(&mut self, frequency_us: u32) {
         // TODO: configure hardware timer frequency
-        // For now just arm a default short period so IRQ will fire.
         self.arm_delay(frequency_us);
     }
 
     fn stop(&mut self) {
-        // stop timer and clear stored event for this index
         unsafe {
             write_volatile(self.reg(TASKS_STOP_OFFSET), 1);
         }
-        match IDX {
-            0 => cortex_m::interrupt::free(|cs| *TIMER0_EVENT.borrow(cs).borrow_mut() = None),
-            1 => cortex_m::interrupt::free(|cs| *TIMER1_EVENT.borrow(cs).borrow_mut() = None),
-            2 => cortex_m::interrupt::free(|cs| *TIMER2_EVENT.borrow(cs).borrow_mut() = None),
-            _ => {}
-        }
+        // keep the registered event mask so start() can re-arm the timer
     }
 
     fn is_running(&self) -> bool {
@@ -209,21 +200,21 @@ unsafe fn handle_timer_irq(idx: usize) {
 
     TIMER_FIRED[idx].store(true, Ordering::Release);
 
-    // Trigger registered event if any
+    // Trigger registered event mask if any
     match idx {
         0 => cortex_m::interrupt::free(|cs| {
-            if let Some(ref e) = *TIMER0_EVENT.borrow(cs).borrow() {
-                e.trigger();
+            if let Some(mask) = *TIMER0_EVENT.borrow(cs).borrow() {
+                crate::hal::utils::signal_mask(mask);
             }
         }),
         1 => cortex_m::interrupt::free(|cs| {
-            if let Some(ref e) = *TIMER1_EVENT.borrow(cs).borrow() {
-                e.trigger();
+            if let Some(mask) = *TIMER1_EVENT.borrow(cs).borrow() {
+                crate::hal::utils::signal_mask(mask);
             }
         }),
         2 => cortex_m::interrupt::free(|cs| {
-            if let Some(ref e) = *TIMER2_EVENT.borrow(cs).borrow() {
-                e.trigger();
+            if let Some(mask) = *TIMER2_EVENT.borrow(cs).borrow() {
+                crate::hal::utils::signal_mask(mask);
             }
         }),
         _ => (),

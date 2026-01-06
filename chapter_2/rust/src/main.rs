@@ -8,6 +8,7 @@ mod arch;
 mod hal;
 
 use crate::hal::hal_gpio::{ConfigurablePin, Pull};
+use crate::hal::hal_gpio::InputInterrupt;
 use crate::hal::hal_timer::Timer as TimerTrait;
 use crate::hal::utils::{poll_all, Event};
 use arch::{GpioImpl, TimerImpl};
@@ -15,12 +16,20 @@ use arch::{GpioImpl, TimerImpl};
 #[entry]
 fn main() -> ! {
     const DELAY_US: u32 = 500_000;
-    // Construct timer collection and acquire timer 0 as a running timer.
+    // Construct timer collection and pick board-appropriate timers.
     let timers = TimerImpl::new();
+
+    #[cfg(feature = "nucleo")]
     let mut blink_timer = timers.t2.into_periodic();
 
-    // Use t3 as a one-shot timer placeholder (not used — debouncer removed).
+    #[cfg(feature = "nucleo")]
     let mut debounce_timer = timers.t3.into_oneshot();
+
+    #[cfg(feature = "qemu")]
+    let mut blink_timer = timers.t0.into_periodic();
+
+    #[cfg(feature = "qemu")]
+    let mut debounce_timer = timers.t1.into_oneshot();
 
     // Construct the board GPIO collection once and move individual pins out.
     let gpio = GpioImpl::new();
@@ -30,7 +39,7 @@ fn main() -> ! {
     let mut but = gpio.p45.into_input(Pull::Up);
 
     #[cfg(feature = "qemu")]
-    let but = gpio.p0.into_input(Pull::None);
+    let mut but = gpio.p0.into_input(Pull::None);
 
     // Create events directly (no factory) — simple, static zero-sized events.
     let blink_evt = crate::hal::utils::Event::<0>::new();
@@ -47,7 +56,6 @@ fn main() -> ! {
     debounce_timer.enable_interrupt(debnc_evt);
 
     // Configure input interrupt to set bit 2 (GPIO event)
-    #[cfg(feature = "nucleo")]
     but.enable_interrupt(crate::hal::hal_gpio::Edge::Falling, gpio_evt);
 
     let mut running = false;
