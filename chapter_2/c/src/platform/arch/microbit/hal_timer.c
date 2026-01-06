@@ -72,11 +72,21 @@ void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event) 
     if ((unsigned)timer_instance >= (sizeof(timers) / sizeof(timers[0]))) return;
     timers[timer_instance].one_shot = one_shoot;
     timers[timer_instance].event = event;
-    /* Clear pending event and enable IRQ in NVIC to mirror behaviour.
-     * The detailed peripheral setup is intentionally left for later.
+    /* Configure timer peripheral for 32-bit timer with 1 MHz ticks.
+     * Nordic-style TIMER peripheral uses PRESCALER as power-of-two divisor
+     * where ticks = HFCLK / (2^PRESCALER). For HFCLK = 16 MHz, PRESCALER
+     * = 4 -> ticks = 1 MHz. Configure mode/bitmode/prescaler and enable
+     * CC[0] compare interrupt.
      */
-    REG(timers[timer_instance].base + EVENT_COMPARE0_OFFSET) = 0u;
-    REG(timers[timer_instance].base + INTENSET_OFFSET) |= TIMER_INTENSET_COMPARE0;
+    uint32_t base = timers[timer_instance].base;
+    REG(base + MODE_OFFSET) = TIMER_MODE_TIMER;
+    REG(base + BITMODE_OFFSET) = TIMER_BITMODE_32BIT;
+    REG(base + PRESCALER_OFFSET) = TIMER_PRESCALER_16; /* PRESCALER=4 -> 2^4=16 divisor */
+
+    /* Clear counter and compare event */
+    REG(base + TASK_CLEAR_OFFSET) = 1u;
+    REG(base + EVENT_COMPARE0_OFFSET) = 0u;
+    REG(base + INTENSET_OFFSET) |= TIMER_INTENSET_COMPARE0;
     NVIC_EnableIRQ(TIMER0_IRQN + (uint32_t)timer_instance);
 }
 
@@ -84,11 +94,17 @@ void hal_timer_init(int timer_instance, bool one_shoot, hal_event_mask_t event) 
 void hal_timer_start(int timer_instance, uint32_t period_us) {
     if ((unsigned)timer_instance >= (sizeof(timers) / sizeof(timers[0]))) return;
     timers[timer_instance].period_us = period_us;
-    /* Skeleton: program CC0 and start the timer minimally so examples can
-     * build and link. Full implementation deferred. */
+    /* Compute ticks given prescaler setting described in init. With
+     * PRESCALER=4 and HFCLK=16MHz the timer tick rate is 1 MHz so
+     * ticks == period_us. Ensure non-zero CC value.
+     */
     uint32_t base = timers[timer_instance].base;
-    REG(base + CC0_OFFSET) = (period_us == 0) ? 1u : period_us;
+    uint32_t ticks = (period_us == 0) ? 1u : period_us;
+    REG(base + CC0_OFFSET) = ticks;
     REG(base + EVENT_COMPARE0_OFFSET) = 0u;
+    /* Ensure counter is cleared before starting so compare timing is
+     * deterministic. Then start the timer. */
+    REG(base + TASK_CLEAR_OFFSET) = 1u;
     REG(base + TASK_START_OFFSET) = 1u;
 }
 

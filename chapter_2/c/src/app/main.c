@@ -1,9 +1,11 @@
 #include <hal_gpio.h>
 #include <hal_timer.h>
+#include <hal_system.h>
 #include <stdbool.h>
 #include <stdio.h>
 
-#define DELAY_MS (500u * 1000)
+#define SLOW_BLINK (500u * 1000)
+#define FAST_BLINK (50u * 1000)
 
 #if defined NUCLEO
 #define LED_GPIO       (5)
@@ -29,7 +31,7 @@ int main(void) {
     hal_timer_init(BLINK_TIMER, false, BLINK_EVT);
     hal_timer_init(DEBOUNCE_TIMER, true, DEBNC_EVT);
     hal_gpio_init_out(LED_GPIO, false, 1);
-    hal_timer_start(BLINK_TIMER, DELAY_MS);
+    hal_timer_start(BLINK_TIMER, SLOW_BLINK);
 
     hal_gpio_init_in(BUT_GPIO, HAL_GPIO_PULLUP);
     hal_gpio_enable_interrupt(BUT_GPIO, HAL_GPIO_EDGE_FALLING, GPIO_EVT);
@@ -48,13 +50,15 @@ int main(void) {
         } else if (evt & DEBNC_EVT && running) {
             hal_timer_stop(BLINK_TIMER);
             if (!fast) {
-                hal_timer_start(BLINK_TIMER, 50000);
+                hal_timer_start(BLINK_TIMER, FAST_BLINK);
             } else {
-                hal_timer_start(BLINK_TIMER, DELAY_MS);
+                hal_timer_start(BLINK_TIMER, SLOW_BLINK);
             }
             running = false;
             fast = !fast;
         }
+
+        hal_wait_for_interrupt();
     }
 
     return 0;

@@ -22,21 +22,33 @@
 
 #define REG(addr) (*(volatile uint32_t *)(addr))
 
+/* Software shadows to track pin direction and output state. QEMU's
+ * peripheral model for the micro:bit may not reflect writes to the
+ * output registers in the input register; maintain shadow state so
+ * hal_gpio_read behaves as expected for pins configured as outputs.
+ */
+static uint32_t gpio_dir_out_mask = 0u; /* 1 = configured as output */
+static uint32_t gpio_out_state = 0u;   /* 1 = logical high last written */
+
 void hal_gpio_init_out(int pin, bool od, int value) {
     (void)od;
-    REG(GPIO_DIRSET) = 1U << pin;
+    gpio_dir_out_mask |= (1u << pin);
     if (value) {
         REG(GPIO_OUTSET) = 1u << pin;
+        gpio_out_state |= (1u << pin);
     } else {
         REG(GPIO_OUTCLR) = 1u << pin;
+        gpio_out_state &= ~(1u << pin);
     }
 }
 
 void hal_gpio_write(int pin, int value) {
     if (value) {
         REG(GPIO_OUTSET) = 1u << pin;
+        gpio_out_state |= (1u << pin);
     } else {
         REG(GPIO_OUTCLR) = 1u << pin;
+        gpio_out_state &= ~(1u << pin);
     }
     printf("GPIO pin %d = %d\n", pin, value);
 }
@@ -67,8 +79,15 @@ int hal_gpio_read(int pin) {
     if (pin < 0 || pin >= 32) {
         return -1;
     }
-    return (REG(GPIO_IN) & (1u << pin)) ? 1 : 0;
+    /* If configured as output, return the last driven value from the
+     * software shadow. Otherwise read the peripheral input register. */
+    uint32_t mask = 1u << pin;
+    if (gpio_dir_out_mask & mask) {
+        return (gpio_out_state & mask) ? 1 : 0;
+    }
+    return (REG(GPIO_IN) & mask) ? 1 : 0;
 }
+
 
 /* Minimal interrupt support for microbit platform. The real implementation
  * would configure GPIOTE/EXTI equivalent and map to event masks. For now
